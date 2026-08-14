@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AccessVoice — Accessible Voice Lecture Notes</title>
+<style>
+  :root{
+    --ink:#14161F;
+    --paper:#1E212C;
+    --paper-raised:#262A38;
+    --rule:#33384A;
+    --amber:#F0A868;
+    --amber-dim:#7A5636;
+    --sage:#8FBC94;
+    --sage-dim:#3F5942;
+    --rose:#E08585;
+    --rose-dim:#5A3838;
+    --text:#F2EEE6;
+    --text-dim:#9B9FAE;
+    --focus:#F0A868;
+    --radius:14px;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --fs-scale:1;
+  }
+  @font-face{
+    font-family:'Fraunces';
+    src:local('Fraunces');
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--text);
+    font-family:var(--font-body);
+    font-size:calc(16px * var(--fs-scale));
+    line-height:1.5;
+    min-height:100vh;
+  }
+  body.high-contrast{
+    --ink:#000000;
+    --paper:#0B0B0B;
+    --paper-raised:#141414;
+    --rule:#555555;
+    --text:#FFFFFF;
+    --text-dim:#DDDDDD;
+    --amber:#FFC978;
+    --sage:#A9E0AE;
+  }
+  body.reduce-motion *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+
+  a.skip-link{
+    position:absolute; left:-999px; top:0; background:var(--amber); color:var(--ink);
+    padding:10px 16px; z-index:100; font-weight:600; border-radius:0 0 8px 0;
+  }
+  a.skip-link:focus{left:0;}
+
+  :focus-visible{outline:3px solid var(--focus); outline-offset:2px;}
+
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 28px; border-bottom:1px solid var(--rule);
+    flex-wrap:wrap; gap:12px;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-mark{
+    width:34px; height:34px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, var(--amber), var(--amber-dim));
+    flex-shrink:0;
+  }
+  .brand h1{font-family:var(--font-display); font-size:1.35rem; font-weight:600; margin:0; letter-spacing:0.2px;}
+  .brand span{display:block; font-size:0.72rem; color:var(--text-dim); font-family:var(--font-mono); letter-spacing:0.08em; text-transform:uppercase;}
+
+  .header-controls{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  button{font-family:var(--font-body); cursor:pointer;}
+  .btn{
+    background:var(--paper-raised); color:var(--text); border:1px solid var(--rule);
+    padding:9px 14px; border-radius:9px; font-size:0.88rem; font-weight:500;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{border-color:var(--amber);}
+  .btn.active{background:var(--sage-dim); border-color:var(--sage); color:var(--text);}
+  select{
+    background:var(--paper-raised); color:var(--text); border:1px solid var(--rule);
+    padding:8px 10px; border-radius:9px; font-size:0.85rem; font-family:var(--font-mono);
+  }
+
+  main{
+    display:grid; grid-template-columns:1.35fr 1fr; gap:0;
+    max-width:1280px; margin:0 auto;
+  }
+  @media(max-width:880px){ main{grid-template-columns:1fr;} }
+
+  .recorder-pane{padding:32px 28px; border-right:1px solid var(--rule);}
+  @media(max-width:880px){ .recorder-pane{border-right:none; border-bottom:1px solid var(--rule);} }
+
+  .hero-eyebrow{font-family:var(--font-mono); font-size:0.74rem; letter-spacing:0.12em; text-transform:uppercase; color:var(--sage); margin:0 0 6px;}
+  .hero-title{font-family:var(--font-display); font-size:clamp(1.8rem, 3vw, 2.4rem); margin:0 0 6px; font-weight:600;}
+  .hero-sub{color:var(--text-dim); margin:0 0 28px; font-size:0.95rem;}
+
+  .mic-zone{display:flex; align-items:center; gap:22px; margin-bottom:26px;}
+  .mic-btn{
+    width:88px; height:88px; border-radius:50%; border:none;
+    background:linear-gradient(160deg, var(--amber), var(--amber-dim));
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    box-shadow:0 0 0 0 rgba(240,168,104,0.5);
+    transition:box-shadow 0.3s ease, transform 0.15s ease;
+  }
+  .mic-btn:hover{transform:scale(1.04);}
+  .mic-btn.listening{
+    animation:pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(240,168,104,0.55);}
+    70%{box-shadow:0 0 0 22px rgba(240,168,104,0);}
+    100%{box-shadow:0 0 0 0 rgba(240,168,104,0);}
+  }
+  .mic-btn svg{width:34px; height:34px;}
+  .mic-status{}
+  .mic-status .state{font-family:var(--font-display); font-size:1.15rem; font-weight:600; margin:0 0 4px;}
+  .mic-status .hint{color:var(--text-dim); font-size:0.85rem; margin:0;}
+  .waveform{display:flex; align-items:flex-end; gap:3px; height:20px; margin-top:8px;}
+  .waveform span{width:3px; background:var(--sage); border-radius:2px; height:4px; transition:height 0.12s ease;}
+
+  .voice-mode-row{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    background:var(--paper); border:1px solid var(--rule); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:22px;
+  }
+  .voice-mode-row .label{font-weight:600; font-size:0.9rem;}
+  .voice-mode-row .desc{color:var(--text-dim); font-size:0.8rem; margin-top:2px;}
+  .switch{
+    position:relative; width:44px; height:24px; background:var(--rule); border-radius:999px; border:none; flex-shrink:0;
+  }
+  .switch::after{content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:var(--text); transition:transform 0.2s ease;}
+  .switch.on{background:var(--sage-dim);}
+  .switch.on::after{transform:translateX(20px); background:var(--sage);}
+
+  .notebook{
+    background:
+      repeating-linear-gradient(var(--paper) 0 30px, var(--rule) 30px 31px);
+    border:1px solid var(--rule); border-left:3px solid var(--rose-dim);
+    border-radius:8px; min-height:260px; padding:18px 18px 18px 22px;
+    font-size:0.98rem; position:relative; margin-bottom:16px;
+  }
+  .notebook .placeholder{color:var(--text-dim); font-style:italic; font-size:0.88rem;}
+  .caption-live{color:var(--text-dim); font-style:italic;}
+  .entry{
+    display:flex; gap:10px; align-items:baseline; margin-bottom:6px; line-height:30px;
+  }
+  .tag{
+    font-family:var(--font-mono); font-size:0.62rem; text-transform:uppercase; letter-spacing:0.06em;
+    padding:2px 7px; border-radius:5px; flex-shrink:0; font-weight:600;
+  }
+  .tag.heading{background:var(--sage-dim); color:var(--sage);}
+  .tag.point{background:var(--paper-raised); color:var(--text-dim); border:1px solid var(--rule);}
+  .tag.definition{background:#2E3A5A; color:#9FB4E8;}
+  .tag.important{background:var(--rose-dim); color:var(--rose);}
+  .tag.image{background:#3A2E5A; color:#C7A9F0;}
+  .entry.heading-text{font-family:var(--font-display); font-weight:600; font-size:1.05rem;}
+
+  .entry.image-entry{display:block; margin-bottom:14px;}
+  .entry.image-entry .tag{margin-bottom:6px; display:inline-block;}
+  .image-thumb-wrap{display:flex; gap:10px; align-items:flex-start;}
+  .image-thumb{
+    width:96px; height:72px; object-fit:cover; border-radius:8px; border:1px solid var(--rule);
+    cursor:pointer; flex-shrink:0; background:var(--paper-raised);
+  }
+  .image-thumb:hover{border-color:var(--amber);}
+  .image-caption{font-size:0.85rem; color:var(--text); padding-top:2px;}
+  .image-caption .caption-label{display:block; font-family:var(--font-mono); font-size:0.65rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:2px;}
+
+  .toolbar-row{display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;}
+  #photoInput{display:none;}
+
+  .lightbox-dialog{background:var(--paper); border:1px solid var(--rule); border-radius:16px; padding:0; max-width:min(90vw, 800px);}
+  .lightbox-dialog::backdrop{background:rgba(0,0,0,0.75);}
+  .lightbox-dialog img{width:100%; display:block; border-radius:12px 12px 0 0;}
+  .lightbox-caption{padding:14px 18px; font-size:0.9rem; color:var(--text-dim);}
+  .lightbox-close{position:absolute; top:10px; right:10px; background:rgba(0,0,0,0.5); color:#fff; border:none; border-radius:50%; width:32px; height:32px; font-size:1.1rem;}
+
+  .caption-prompt{
+    background:var(--paper-raised); border:1px solid var(--sage); border-radius:10px;
+    padding:12px 14px; margin-bottom:14px;
+  }
+  .caption-prompt img{max-width:140px; border-radius:8px; display:block; margin-bottom:8px;}
+  .caption-prompt label{display:block; font-size:0.8rem; color:var(--text-dim); margin-bottom:6px;}
+  .caption-prompt input{width:100%; padding:8px 10px; border-radius:7px; border:1px solid var(--rule); background:var(--paper); color:var(--text); font-size:0.88rem; margin-bottom:10px;}
+  .caption-prompt .row{display:flex; gap:8px; justify-content:flex-end;}
+
+  .note-actions{display:flex; gap:10px; justify-content:flex-end;}
+  .note-actions .btn.primary{background:var(--sage-dim); border-color:var(--sage);}
+  .note-actions .btn.danger:hover{border-color:var(--rose);}
+
+  .sidebar{padding:32px 28px;}
+  .search-row{position:relative; margin-bottom:20px;}
+  .search-row input{
+    width:100%; padding:10px 14px; border-radius:9px; border:1px solid var(--rule);
+    background:var(--paper); color:var(--text); font-size:0.88rem;
+  }
+  .sidebar h2{font-family:var(--font-display); font-size:1.05rem; margin:0 0 14px; font-weight:600;}
+  .empty-state{
+    border:1px dashed var(--rule); border-radius:var(--radius); padding:26px 18px;
+    text-align:center; color:var(--text-dim); font-size:0.88rem;
+  }
+  .note-card{
+    background:var(--paper); border:1px solid var(--rule); border-radius:var(--radius);
+    padding:14px 16px; margin-bottom:12px; cursor:pointer;
+  }
+  .note-card:hover{border-color:var(--amber);}
+  .note-card h3{margin:0 0 4px; font-family:var(--font-display); font-size:1rem;}
+  .note-card .meta{font-family:var(--font-mono); font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em;}
+  .note-card .snippet{font-size:0.82rem; color:var(--text-dim); margin-top:6px;}
+
+  dialog{
+    background:var(--paper); color:var(--text); border:1px solid var(--rule); border-radius:16px;
+    padding:0; width:min(640px, 92vw); max-height:82vh;
+  }
+  dialog::backdrop{background:rgba(0,0,0,0.6);}
+  .dialog-inner{padding:24px 26px; overflow-y:auto; max-height:82vh;}
+  .dialog-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px;}
+  .dialog-head h2{font-family:var(--font-display); margin:0; font-size:1.3rem;}
+  .icon-btn{background:none; border:none; color:var(--text-dim); font-size:1.3rem; line-height:1; padding:4px;}
+  .icon-btn:hover{color:var(--text);}
+  .dialog-tabs{display:flex; gap:8px; margin-bottom:16px;}
+  .dialog-tabs button{background:var(--paper-raised); border:1px solid var(--rule); color:var(--text-dim); padding:6px 12px; border-radius:8px; font-size:0.82rem;}
+  .dialog-tabs button.active{color:var(--text); border-color:var(--sage); background:var(--sage-dim);}
+
+  .flashcard{
+    background:var(--paper-raised); border:1px solid var(--rule); border-radius:12px;
+    padding:20px; margin-bottom:12px; cursor:pointer; min-height:80px;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+  }
+  .flashcard .fc-label{font-family:var(--font-mono); font-size:0.65rem; color:var(--text-dim); text-transform:uppercase; position:absolute; margin-top:-46px;}
+  .flashcard p{margin:0; font-size:0.95rem;}
+
+  footer{
+    text-align:center; padding:24px; color:var(--text-dim); font-size:0.78rem;
+    border-top:1px solid var(--rule); font-family:var(--font-mono);
+  }
+  .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);}
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <div>
+      <h1>AccessVoice</h1>
+      <span>Accessible lecture notes</span>
+    </div>
+  </div>
+  <div class="header-controls">
+    <button class="btn" id="contrastToggle" aria-pressed="false">◐ High contrast</button>
+    <select id="fontSizeSelect" aria-label="Text size">
+      <option value="1">Text: normal</option>
+      <option value="1.2">Text: large</option>
+      <option value="1.45">Text: extra large</option>
+    </select>
+  </div>
+</header>
+
+<main id="main-content">
+  <section class="recorder-pane" aria-labelledby="recorder-heading">
+    <p class="hero-eyebrow">Live lecture capture</p>
+    <h2 id="recorder-heading" class="hero-title">Say it. We'll structure it.</h2>
+    <p class="hero-sub">Record hands-free with live captions in English, Hindi or Gujarati.</p>
+
+    <div class="mic-zone">
+      <button class="mic-btn" id="micBtn" aria-pressed="false" aria-label="Start recording">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#14161F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/>
+          <line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <div class="mic-status">
+        <p class="state" id="micState">Ready to record</p>
+        <p class="hint" id="micHint">Tap the mic, or turn on voice control mode below.</p>
+        <div class="waveform" id="waveform" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="voice-mode-row">
+      <div>
+        <div class="label">Voice control mode</div>
+        <div class="desc">Say "start notes" or "stop notes" to record hands-free</div>
+      </div>
+      <button class="switch" id="voiceModeSwitch" role="switch" aria-checked="false" aria-label="Voice control mode"></button>
+    </div>
+
+    <div class="voice-mode-row">
+      <div>
+        <div class="label">Language</div>
+        <div class="desc">Recognition &amp; read-aloud language</div>
+      </div>
+      <select id="langSelect" aria-label="Language">
+        <option value="en-US">EN — English</option>
+        <option value="hi-IN">HI — हिंदी</option>
+        <option value="gu-IN">GU — ગુજરાતી</option>
+      </select>
+    </div>
+
+    <div class="toolbar-row">
+      <h3 style="font-family:var(--font-display); font-size:1rem; margin:0; flex:1;">Live captions</h3>
+      <button class="btn" id="addPhotoBtn" type="button">📷 Add photo of handwriting / diagram</button>
+      <input type="file" id="photoInput" accept="image/*" capture="environment">
+    </div>
+    <div class="notebook" id="notebook" aria-live="polite">
+      <p class="placeholder" id="notebookPlaceholder">Captions appear here as you speak. Say "heading", "new point", "definition" or "important" to structure your notes automatically. Use "Add photo" to drop in a picture of handwritten notes or a diagram right where it belongs.</p>
+    </div>
+
+    <div class="note-actions">
+      <button class="btn danger" id="discardBtn">Discard</button>
+      <button class="btn primary" id="saveBtn">Save note</button>
+    </div>
+    <p class="visually-hidden" id="srAnnounce" role="status"></p>
+  </section>
+
+  <aside class="sidebar" aria-labelledby="saved-heading">
+    <div class="search-row">
+      <input type="search" id="searchInput" placeholder="Search notes" aria-label="Search notes">
+    </div>
+    <h2 id="saved-heading">Saved notes (<span id="notesCount">0</span>)</h2>
+    <div id="notesList">
+      <div class="empty-state" id="emptyState">No notes yet. Record your first lecture.</div>
+    </div>
+  </aside>
+</main>
+
+<footer>Built for the hackathon — runs fully in your browser, no server required.</footer>
+
+<dialog id="noteDialog">
+  <div class="dialog-inner">
+    <div class="dialog-head">
+      <div>
+        <h2 id="dialogTitle">Note</h2>
+        <p class="meta" id="dialogMeta" style="font-family:var(--font-mono); font-size:0.7rem; color:var(--text-dim); margin:2px 0 0;"></p>
+      </div>
+      <button class="icon-btn" id="closeDialog" aria-label="Close">✕</button>
+    </div>
+    <div class="dialog-tabs">
+      <button class="active" id="tabNotes" type="button">Notes</button>
+      <button id="tabCards" type="button">Flashcards</button>
+    </div>
+    <div id="dialogNotesView"></div>
+    <div id="dialogCardsView" style="display:none;"></div>
+    <div class="note-actions" style="margin-top:16px;">
+      <button class="btn" id="readAloudBtn">🔊 Read aloud</button>
+      <button class="btn danger" id="deleteNoteBtn">Delete note</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="lightboxDialog" class="lightbox-dialog">
+  <div style="position:relative;">
+    <button class="lightbox-close" id="lightboxClose" aria-label="Close image">✕</button>
+    <img id="lightboxImg" src="" alt="">
+    <p class="lightbox-caption" id="lightboxCaption"></p>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- State ----------
+  let notes = [];              // saved notes
+  let currentEntries = [];     // entries for the in-progress note
+  let recognizing = false;
+  let voiceControlMode = false;
+  let recognition = null;
+  let idCounter = 1;
+  let activeNoteId = null;
+  let waveInterval = null;
+
+  const KEYWORD_MAP = {
+    "heading": "heading",
+    "new point": "point",
+    "point": "point",
+    "definition": "definition",
+    "important": "important"
+  };
+
+  // ---------- Elements ----------
+  const micBtn = document.getElementById('micBtn');
+  const micState = document.getElementById('micState');
+  const micHint = document.getElementById('micHint');
+  const notebook = document.getElementById('notebook');
+  const notebookPlaceholder = document.getElementById('notebookPlaceholder');
+  const saveBtn = document.getElementById('saveBtn');
+  const discardBtn = document.getElementById('discardBtn');
+  const notesList = document.getElementById('notesList');
+  const notesCount = document.getElementById('notesCount');
+  const emptyState = document.getElementById('emptyState');
+  const searchInput = document.getElementById('searchInput');
+  const langSelect = document.getElementById('langSelect');
+  const voiceModeSwitch = document.getElementById('voiceModeSwitch');
+  const contrastToggle = document.getElementById('contrastToggle');
+  const fontSizeSelect = document.getElementById('fontSizeSelect');
+  const waveform = document.getElementById('waveform');
+  const srAnnounce = document.getElementById('srAnnounce');
+
+  const addPhotoBtn = document.getElementById('addPhotoBtn');
+  const photoInput = document.getElementById('photoInput');
+  const lightboxDialog = document.getElementById('lightboxDialog');
+  const lightboxImg = document.getElementById('lightboxImg');
+  const lightboxCaption = document.getElementById('lightboxCaption');
+  const lightboxClose = document.getElementById('lightboxClose');
+
+  const noteDialog = document.getElementById('noteDialog');
+  const dialogTitle = document.getElementById('dialogTitle');
+  const dialogMeta = document.getElementById('dialogMeta');
+  const dialogNotesView = document.getElementById('dialogNotesView');
+  const dialogCardsView = document.getElementById('dialogCardsView');
+  const tabNotes = document.getElementById('tabNotes');
+  const tabCards = document.getElementById('tabCards');
+  const closeDialog = document.getElementById('closeDialog');
+  const readAloudBtn = document.getElementById('readAloudBtn');
+  const deleteNoteBtn = document.getElementById('deleteNoteBtn');
+
+  // ---------- Speech recognition setup ----------
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const speechSupported = !!SpeechRecognition;
+
+  if(!speechSupported){
+    micHint.textContent = "Speech recognition isn't supported in this browser. Try Chrome or Edge on desktop or Android.";
+    micBtn.disabled = true;
+  } else {
+    recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = langSelect.value;
+
+    recognition.onresult = function(event){
+      let interim = "";
+      let finalText = "";
+      for(let i = event.resultIndex; i < event.results.length; i++){
+        const transcript = event.results[i][0].transcript;
+        if(event.results[i].isFinal){
+          finalText += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      if(finalText.trim()){
+        handleFinalTranscript(finalText.trim());
+      }
+      renderInterim(interim);
+    };
+
+    recognition.onerror = function(e){
+      if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+        micState.textContent = "Microphone access denied";
+        micHint.textContent = "Allow microphone access in your browser settings to record.";
+      }
+      stopListeningUI();
+    };
+
+    recognition.onend = function(){
+      // If voice control mode is on and we didn't intentionally stop, restart listening loop
+      if(recognizing && voiceControlMode){
+        try{ recognition.start(); }catch(err){}
+      } else {
+        stopListeningUI();
+      }
+    };
+  }
+
+  // ---------- Waveform animation ----------
+  function startWaveform(){
+    const bars = waveform.querySelectorAll('span');
+    waveInterval = setInterval(function(){
+      bars.forEach(function(b){
+        b.style.height = (4 + Math.random() * 16) + "px";
+      });
+    }, 180);
+  }
+  function stopWaveform(){
+    clearInterval(waveInterval);
+    waveform.querySelectorAll('span').forEach(function(b){ b.style.height = "4px"; });
+  }
+
+  // ---------- Recording control ----------
+  function startListeningUI(){
+    recognizing = true;
+    micBtn.classList.add('listening');
+    micBtn.setAttribute('aria-pressed', 'true');
+    micBtn.setAttribute('aria-label', 'Stop recording');
+    micState.textContent = "Listening…";
+    micHint.textContent = 'Say "heading", "new point", "definition" or "important" to structure notes.';
+    startWaveform();
+  }
+  function stopListeningUI(){
+    recognizing = false;
+    micBtn.classList.remove('listening');
+    micBtn.setAttribute('aria-pressed', 'false');
+    micBtn.setAttribute('aria-label', 'Start recording');
+    micState.textContent = "Ready to record";
+    micHint.textContent = voiceControlMode ? 'Say "start notes" to begin.' : "Tap the mic, or turn on voice control mode below.";
+    stopWaveform();
+  }
+
+  function beginRecording(){
+    if(!speechSupported) return;
+    try{
+      recognition.lang = langSelect.value;
+      recognition.start();
+      startListeningUI();
+      srAnnounce.textContent = "Recording started";
+    }catch(err){ /* already started */ }
+  }
+  function endRecording(){
+    if(!speechSupported) return;
+    try{ recognition.stop(); }catch(err){}
+    stopListeningUI();
+    srAnnounce.textContent = "Recording stopped";
+  }
+
+  micBtn.addEventListener('click', function(){
+    if(recognizing){ endRecording(); } else { beginRecording(); }
+  });
+
+  // ---------- Voice control hotword loop ----------
+  voiceModeSwitch.addEventListener('click', function(){
+    voiceControlMode = !voiceControlMode;
+    voiceModeSwitch.classList.toggle('on', voiceControlMode);
+    voiceModeSwitch.setAttribute('aria-checked', String(voiceControlMode));
+    if(voiceControlMode && !recognizing){
+      beginRecording();
+      micState.textContent = "Listening for \"start notes\"…";
+    } else if(!voiceControlMode && recognizing){
+      endRecording();
+    }
+  });
+
+  // ---------- Transcript handling ----------
+  function renderInterim(text){
+    let interimEl = document.getElementById('interimLine');
+    if(!text){
+      if(interimEl) interimEl.remove();
+      return;
+    }
+    if(!interimEl){
+      interimEl = document.createElement('p');
+      interimEl.id = 'interimLine';
+      interimEl.className = 'caption-live';
+      notebook.appendChild(interimEl);
+    }
+    interimEl.textContent = text;
+    notebook.scrollTop = notebook.scrollHeight;
+  }
+
+  function handleFinalTranscript(text){
+    const lower = text.toLowerCase();
+
+    // Voice-control hotwords
+    if(voiceControlMode){
+      if(lower.includes("stop notes")){
+        srAnnounce.textContent = "Stopped by voice command";
+        endRecording();
+        return;
+      }
+      if(lower.includes("start notes")){
+        return; // already listening; just acknowledge
+      }
+    }
+
+    // Detect structuring keyword at start of utterance
+    let type = "point";
+    let content = text;
+    for(const kw in KEYWORD_MAP){
+      const re = new RegExp("^\\s*" + kw + "[:\\s,-]*", "i");
+      if(re.test(text)){
+        type = KEYWORD_MAP[kw];
+        content = text.replace(re, "").trim();
+        break;
+      }
+    }
+    if(!content){
+      content = text;
+    }
+    addEntry(type, content);
+  }
+
+  function addEntry(type, content){
+    if(!content) return;
+    currentEntries.push({type: type, content: content});
+    renderNotebook();
+  }
+
+  function renderNotebook(){
+    notebookPlaceholder.style.display = currentEntries.length ? 'none' : 'block';
+    // clear existing entry nodes (keep placeholder)
+    Array.from(notebook.querySelectorAll('.entry, #interimLine')).forEach(function(n){ n.remove(); });
+    currentEntries.forEach(function(entry){
+      notebook.appendChild(buildEntryRow(entry));
+    });
+    notebook.scrollTop = notebook.scrollHeight;
+  }
+
+  function buildEntryRow(entry){
+    if(entry.type === 'image'){
+      const row = document.createElement('div');
+      row.className = 'entry image-entry';
+      row.innerHTML =
+        '<span class="tag image">photo</span>' +
+        '<div class="image-thumb-wrap">' +
+        '<img class="image-thumb" src="" alt="">' +
+        '<div class="image-caption"><span class="caption-label">Description</span><span class="cap-text"></span></div>' +
+        '</div>';
+      const thumb = row.querySelector('.image-thumb');
+      thumb.src = entry.image;
+      thumb.alt = entry.content;
+      row.querySelector('.cap-text').textContent = entry.content;
+      thumb.addEventListener('click', function(){ openLightbox(entry.image, entry.content); });
+      thumb.setAttribute('role','button');
+      thumb.tabIndex = 0;
+      thumb.addEventListener('keypress', function(e){ if(e.key==='Enter') openLightbox(entry.image, entry.content); });
+      return row;
+    }
+    const row = document.createElement('div');
+    row.className = 'entry' + (entry.type === 'heading' ? ' heading-text' : '');
+    const tag = document.createElement('span');
+    tag.className = 'tag ' + entry.type;
+    tag.textContent = entry.type;
+    const txt = document.createElement('span');
+    txt.textContent = entry.content;
+    row.appendChild(tag);
+    row.appendChild(txt);
+    return row;
+  }
+
+  discardBtn.addEventListener('click', function(){
+    currentEntries = [];
+    renderNotebook();
+    srAnnounce.textContent = "Note discarded";
+  });
+
+  saveBtn.addEventListener('click', function(){
+    if(currentEntries.length === 0){
+      srAnnounce.textContent = "Nothing to save yet";
+      return;
+    }
+    const headingEntry = currentEntries.find(function(e){ return e.type === 'heading'; });
+    const title = headingEntry ? headingEntry.content : ("Lecture note — " + new Date().toLocaleDateString());
+    const note = {
+      id: idCounter++,
+      title: title,
+      date: new Date(),
+      lang: langSelect.value,
+      entries: currentEntries.slice()
+    };
+    notes.unshift(note);
+    currentEntries = [];
+    renderNotebook();
+    renderNotesList();
+    srAnnounce.textContent = "Note saved: " + title;
+  });
+
+  // ---------- Photo attachment (handwritten notes / diagrams) ----------
+  addPhotoBtn.addEventListener('click', function(){
+    photoInput.value = "";
+    photoInput.click();
+  });
+
+  photoInput.addEventListener('change', function(){
+    const file = photoInput.files && photoInput.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e){
+      downscaleImage(e.target.result, 1000, function(dataUrl){
+        promptForCaption(dataUrl, file.name);
+      });
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Shrink large photos so an image-heavy note doesn't bloat memory
+  function downscaleImage(dataUrl, maxWidth, callback){
+    const img = new Image();
+    img.onload = function(){
+      if(img.width <= maxWidth){ callback(dataUrl); return; }
+      const scale = maxWidth / img.width;
+      const canvas = document.createElement('canvas');
+      canvas.width = maxWidth;
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      callback(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = function(){ callback(dataUrl); };
+    img.src = dataUrl;
+  }
+
+  // Inline caption prompt: asks for a short description so the photo has
+  // real alt text for screen-reader users, then adds it as an entry
+  // right where the recording currently is.
+  function promptForCaption(dataUrl, fileName){
+    const wasRecording = recognizing;
+    if(wasRecording) endRecording();
+
+    notebookPlaceholder.style.display = 'none';
+    const box = document.createElement('div');
+    box.className = 'caption-prompt';
+    box.innerHTML =
+      '<img src="" alt="Preview of attached photo">' +
+      '<label for="captionInputField">Describe this photo (read aloud to screen-reader users)</label>' +
+      '<input type="text" id="captionInputField" placeholder="e.g. Diagram of the cell membrane, labeled">' +
+      '<div class="row">' +
+      '<button class="btn" id="cancelPhotoBtn" type="button">Cancel</button>' +
+      '<button class="btn primary" id="confirmPhotoBtn" type="button">Add to note</button>' +
+      '</div>';
+    box.querySelector('img').src = dataUrl;
+    notebook.appendChild(box);
+    notebook.scrollTop = notebook.scrollHeight;
+
+    const input = box.querySelector('#captionInputField');
+    input.focus();
+
+    function cleanup(){ box.remove(); if(wasRecording) beginRecording(); }
+
+    box.querySelector('#cancelPhotoBtn').addEventListener('click', cleanup);
+    box.querySelector('#confirmPhotoBtn').addEventListener('click', function(){
+      const caption = input.value.trim() || fileName || "Attached photo";
+      currentEntries.push({type: 'image', content: caption, image: dataUrl});
+      cleanup();
+      renderNotebook();
+      srAnnounce.textContent = "Photo added to note";
+    });
+    input.addEventListener('keydown', function(e){
+      if(e.key === 'Enter'){ box.querySelector('#confirmPhotoBtn').click(); }
+      if(e.key === 'Escape'){ cleanup(); }
+    });
+  }
+
+  function openLightbox(dataUrl, caption){
+    lightboxImg.src = dataUrl;
+    lightboxImg.alt = caption || "Attached photo";
+    lightboxCaption.textContent = caption || "";
+    lightboxDialog.showModal();
+  }
+  lightboxClose.addEventListener('click', function(){ lightboxDialog.close(); });
+
+  // ---------- Notes list / search ----------
+  function renderNotesList(){
+    const query = searchInput.value.trim().toLowerCase();
+    const filtered = notes.filter(function(n){
+      if(!query) return true;
+      const hay = (n.title + " " + n.entries.map(function(e){return e.content;}).join(" ")).toLowerCase();
+      return hay.includes(query);
+    });
+    notesCount.textContent = notes.length;
+    notesList.innerHTML = "";
+    if(filtered.length === 0){
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = notes.length === 0 ? "No notes yet. Record your first lecture." : "No notes match your search.";
+      notesList.appendChild(empty);
+      return;
+    }
+    filtered.forEach(function(note){
+      const card = document.createElement('div');
+      card.className = 'note-card';
+      card.tabIndex = 0;
+      card.setAttribute('role','button');
+      card.setAttribute('aria-label', 'Open note: ' + note.title);
+      const textEntries = note.entries.filter(function(e){ return e.type !== 'image'; });
+      const photoCount = note.entries.length - textEntries.length;
+      let snippet = textEntries.slice(0,2).map(function(e){return e.content;}).join(' — ');
+      if(photoCount > 0){ snippet += (snippet ? ' · ' : '') + '📷 ' + photoCount + (photoCount===1?' photo':' photos'); }
+      card.innerHTML = '<h3></h3><div class="meta"></div><div class="snippet"></div>';
+      card.querySelector('h3').textContent = note.title;
+      card.querySelector('.meta').textContent = note.date.toLocaleString() + " · " + note.lang;
+      card.querySelector('.snippet').textContent = snippet;
+      card.addEventListener('click', function(){ openNoteDialog(note.id); });
+      card.addEventListener('keypress', function(e){ if(e.key==='Enter') openNoteDialog(note.id); });
+      notesList.appendChild(card);
+    });
+  }
+  searchInput.addEventListener('input', renderNotesList);
+
+  // ---------- Note dialog: view / flashcards / read aloud / delete ----------
+  function openNoteDialog(id){
+    const note = notes.find(function(n){ return n.id === id; });
+    if(!note) return;
+    activeNoteId = id;
+    dialogTitle.textContent = note.title;
+    dialogMeta.textContent = note.date.toLocaleString() + " · " + note.lang;
+
+    dialogNotesView.innerHTML = "";
+    note.entries.forEach(function(entry){
+      dialogNotesView.appendChild(buildEntryRow(entry));
+    });
+
+    renderFlashcards(note);
+    showTab('notes');
+    noteDialog.showModal();
+  }
+
+  function renderFlashcards(note){
+    dialogCardsView.innerHTML = "";
+    const cardable = note.entries.filter(function(e){ return e.type === 'definition' || e.type === 'important'; });
+    if(cardable.length === 0){
+      dialogCardsView.innerHTML = '<div class="empty-state">Say "definition" or "important" while recording to generate flashcards automatically.</div>';
+      return;
+    }
+    cardable.forEach(function(entry, idx){
+      let front, back;
+      if(entry.type === 'definition' && entry.content.includes(' is ')){
+        const parts = entry.content.split(/ is /i);
+        front = parts[0].trim();
+        back = entry.content;
+      } else if(entry.type === 'definition' && entry.content.includes(':')){
+        const parts = entry.content.split(':');
+        front = parts[0].trim();
+        back = entry.content;
+      } else {
+        front = (entry.type === 'important' ? "Why is this important?" : "Define this");
+        back = entry.content;
+      }
+      const wrap = document.createElement('div');
+      wrap.style.position = 'relative';
+      wrap.style.marginBottom = '18px';
+      const label = document.createElement('div');
+      label.className = 'fc-label';
+      label.textContent = 'Card ' + (idx+1) + ' of ' + cardable.length;
+      const card = document.createElement('div');
+      card.className = 'flashcard';
+      card.tabIndex = 0;
+      card.setAttribute('role','button');
+      let flipped = false;
+      const p = document.createElement('p');
+      p.textContent = front;
+      card.appendChild(p);
+      function flip(){
+        flipped = !flipped;
+        p.textContent = flipped ? back : front;
+      }
+      card.addEventListener('click', flip);
+      card.addEventListener('keypress', function(e){ if(e.key==='Enter') flip(); });
+      wrap.appendChild(label);
+      wrap.appendChild(card);
+      dialogCardsView.appendChild(wrap);
+    });
+    const hint = document.createElement('p');
+    hint.className = 'hint';
+    hint.style.textAlign = 'center';
+    hint.style.color = 'var(--text-dim)';
+    hint.style.fontSize = '0.8rem';
+    hint.textContent = "Tap a card to flip it.";
+    dialogCardsView.appendChild(hint);
+  }
+
+  function showTab(which){
+    const isNotes = which === 'notes';
+    dialogNotesView.style.display = isNotes ? 'block' : 'none';
+    dialogCardsView.style.display = isNotes ? 'none' : 'block';
+    tabNotes.classList.toggle('active', isNotes);
+    tabCards.classList.toggle('active', !isNotes);
+  }
+  tabNotes.addEventListener('click', function(){ showTab('notes'); });
+  tabCards.addEventListener('click', function(){ showTab('cards'); });
+  closeDialog.addEventListener('click', function(){ noteDialog.close(); });
+
+  deleteNoteBtn.addEventListener('click', function(){
+    notes = notes.filter(function(n){ return n.id !== activeNoteId; });
+    renderNotesList();
+    noteDialog.close();
+  });
+
+  readAloudBtn.addEventListener('click', function(){
+    const note = notes.find(function(n){ return n.id === activeNoteId; });
+    if(!note || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const text = note.entries.map(function(e){
+      return e.type === 'image' ? ("Photo: " + e.content) : e.content;
+    }).join('. ');
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = note.lang;
+    window.speechSynthesis.speak(utter);
+  });
+
+  // ---------- Accessibility controls ----------
+  contrastToggle.addEventListener('click', function(){
+    const on = document.body.classList.toggle('high-contrast');
+    contrastToggle.setAttribute('aria-pressed', String(on));
+  });
+  fontSizeSelect.addEventListener('change', function(){
+    document.documentElement.style.setProperty('--fs-scale', fontSizeSelect.value);
+  });
+
+  // ---------- Init ----------
+  renderNotesList();
+  renderNotebook();
+})();
+</script>
+</body>
+</html>
