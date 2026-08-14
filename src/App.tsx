@@ -5,9 +5,12 @@ import {
   LectureSession, 
   PodcastScript, 
   SmartToolResult, 
-  TranscriptSegment 
+  TranscriptSegment,
+  ActiveViewType,
+  GlobalSearchResult,
+  UserAnalytics
 } from './types/notes';
-import { INITIAL_LECTURE } from './services/mockData';
+import { INITIAL_LECTURE, SIMULATED_LECTURE_STREAM, SAMPLE_MEDIA_NEURAL } from './services/mockData';
 import { 
   explainLikeImFive, 
   generateFlashcards, 
@@ -15,12 +18,26 @@ import {
   generateQuiz, 
   generateSmartNotes, 
   generateSmartSummary, 
-  getStoredApiKey 
+  getStoredApiKey,
+  answerLectureQuestion
 } from './services/geminiService';
+import { 
+  getAllLectures, 
+  saveLecture, 
+  deleteLecture, 
+  getActiveLectureId, 
+  setActiveLectureId, 
+  getUserAnalytics, 
+  setFlashcardMastered, 
+  saveQuizAttempt 
+} from './services/storageService';
 import { speechService, VoiceCommandAction } from './services/speechService';
 import { useAccessibility } from './context/AccessibilityContext';
 
 import { Header } from './components/Header';
+import { DashboardView } from './components/DashboardView';
+import { LecturesLibraryView } from './components/LecturesLibraryView';
+import { LectureTimelineView } from './components/LectureTimelineView';
 import { LectureRecorder } from './components/LectureRecorder';
 import { LiveNotePanel } from './components/LiveNotePanel';
 import { NotesView } from './components/NotesView';
@@ -31,24 +48,21 @@ import { CameraCaptureModal } from './components/CameraCaptureModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { ContextMenu } from './components/ContextMenu';
 import { SmartToolsModal } from './components/SmartToolsModal';
+import { GlobalSearchModal } from './components/GlobalSearchModal';
+import { ExportModal } from './components/ExportModal';
 
 export const App: React.FC = () => {
   const { announce } = useAccessibility();
 
-  // Session State
-  const [session, setSession] = useState<LectureSession>(() => {
-    const saved = localStorage.getItem('echonote_active_session');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        return INITIAL_LECTURE;
-      }
-    }
-    return INITIAL_LECTURE;
-  });
+  // Multi-Lecture Storage & Selection State
+  const [lectures, setLectures] = useState<LectureSession[]>(() => getAllLectures());
+  const [activeLectureId, setActiveLectureIdState] = useState<string>(() => getActiveLectureId());
+  
+  const activeLecture = lectures.find(l => l.id === activeLectureId) || lectures[0] || INITIAL_LECTURE;
+  const [session, setSession] = useState<LectureSession>(activeLecture);
 
-  const [activeTab, setActiveTab] = useState<'notes' | 'podcast' | 'media' | 'mindmap'>('notes');
+  // Active View State
+  const [activeView, setActiveView] = useState<ActiveViewType>('dashboard');
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isVoiceListening, setIsVoiceListening] = useState<boolean>(() => {
     return localStorage.getItem('echonote_voice_activation') === 'true';
@@ -56,10 +70,13 @@ export const App: React.FC = () => {
   const [isGeneratingNotes, setIsGeneratingNotes] = useState<boolean>(false);
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [lastHeardPhrase, setLastHeardPhrase] = useState<string>('');
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
   // Modals & Context Menu State
   const [isCameraModalOpen, setIsCameraModalOpen] = useState<boolean>(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState<boolean>(false);
+  const [exportModalLecture, setExportModalLecture] = useState<LectureSession | null>(null);
   const [hasApiKey, setHasApiKey] = useState<boolean>(() => !!getStoredApiKey());
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
@@ -70,18 +87,31 @@ export const App: React.FC = () => {
   });
 
   const [smartToolResult, setSmartToolResult] = useState<SmartToolResult | null>(null);
+  const [analytics, setAnalytics] = useState<UserAnalytics>(() => getUserAnalytics());
 
   const autoNoteTimeoutRef = useRef<any>(null);
   const rawTranscriptRef = useRef<string>('');
   const mediaRef = useRef<LectureMedia[]>([]);
-  // Counts how many recording sessions have started — used to label sections
   const recordingSessionRef = useRef<number>(0);
-  // Snapshot of sections from before the current recording — preserved across sessions
   const previousSectionsRef = useRef<any[]>([]);
 
-  // Save Session to LocalStorage
+  // Synchronize Active Lecture Selection
+  const handleSelectLecture = (id: string) => {
+    const found = lectures.find(l => l.id === id);
+    if (found) {
+      setActiveLectureId(id);
+      setActiveLectureIdState(id);
+      setSession(found);
+      setActiveView('notes');
+      announce(`Selected lecture: ${found.title}`);
+    }
+  };
+
+  // Save Session to Local Storage & Refresh Analytics
   useEffect(() => {
-    localStorage.setItem('echonote_active_session', JSON.stringify(session));
+    saveLecture(session);
+    setLectures(getAllLectures());
+    setAnalytics(getUserAnalytics());
   }, [session]);
 
   // Keep refs in sync so speech callbacks always see fresh values
@@ -95,7 +125,6 @@ export const App: React.FC = () => {
     if (!fullTranscript.trim()) return;
 
     setSession(prev => {
-      // ── 1. TOKENISE into clean sentences ─────────────────────────────────
       const rawSentences = fullTranscript
         .replace(/\s+/g, ' ')
         .split(/(?<=[.!?])\s+/)
@@ -113,7 +142,6 @@ export const App: React.FC = () => {
         actionItems: []
       };
 
-      // ── 2. DERIVE TITLE from first topic sentence ─────────────────────────
       let derivedTitle = existingNotes.title;
       const titlePlaceholders = [
         'New Lecture Notes', 'New Lecture Session',
@@ -127,10 +155,8 @@ export const App: React.FC = () => {
         derivedTitle = derivedTitle.charAt(0).toUpperCase() + derivedTitle.slice(1);
       }
 
-      // ── 3. EXECUTIVE SUMMARY — first 2-3 sentences ───────────────────────
       const summary = rawSentences.slice(0, Math.min(3, rawSentences.length)).join(' ');
 
-      // ── 4. SMART BULLET POINTS — pick distinct non-trivial sentences ──────
       const STOPWORDS = new Set([
         'the','a','an','and','or','but','in','on','at','to','for','of','is',
         'it','this','that','with','as','was','are','be','by','from','so','we',
@@ -141,7 +167,6 @@ export const App: React.FC = () => {
         'so','now','here','today','okay','alright','um','uh','like','right'
       ]);
 
-      // Score each sentence by information density (unique long words / length)
       const scoreSentence = (s: string): number => {
         const words = s.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/);
         const meaningful = words.filter(w => w.length > 5 && !STOPWORDS.has(w));
@@ -161,7 +186,6 @@ export const App: React.FC = () => {
           return b;
         });
 
-      // ── 5. GROUP INTO SECTIONS — chunk every ~4 sentences ────────────────
       const CHUNK = 4;
       const permanentSections: any[] = [];
       const completedSentences = rawSentences.slice(0, -Math.min(4, rawSentences.length));
@@ -190,7 +214,6 @@ export const App: React.FC = () => {
         });
       }
 
-      // ── 6. LIVE SECTION — last few unfinished sentences ───────────────────
       const liveSentences = rawSentences.slice(-Math.min(4, rawSentences.length));
       const mathLive = liveSentences.join(' ').match(/[A-Za-z]\s*=\s*[A-Za-z0-9^+\-*/().\s]{3,40}/);
       const liveSection = {
@@ -208,7 +231,6 @@ export const App: React.FC = () => {
 
       const allSections = [...permanentSections, liveSection];
 
-      // ── 7. EXTRACT KEY TERMS — repeated long words as glossary ────────────
       const wordFreq: Record<string, number> = {};
       fullTranscript.toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).forEach(w => {
         if (w.length >= 7 && !STOPWORDS.has(w)) {
@@ -243,11 +265,10 @@ export const App: React.FC = () => {
     });
   }, []);
 
-  // isRecordingRef so the speech callback always sees current value without stale closure
   const isRecordingRef = useRef(false);
   useEffect(() => { isRecordingRef.current = isRecording; }, [isRecording]);
 
-  // Initialize Speech Recognition Handlers — run only once on mount
+  // Speech Recognition Callbacks
   useEffect(() => {
     speechService.setHandlers({
       onStatusChange: (status) => {
@@ -260,7 +281,6 @@ export const App: React.FC = () => {
         setLastHeardPhrase(phrase);
       },
       onTranscriptChunk: (chunkText, isFinal) => {
-        // Always read from ref — avoids stale closure over isRecording
         if (!isRecordingRef.current) return;
         if (!chunkText.trim()) return;
 
@@ -279,7 +299,6 @@ export const App: React.FC = () => {
             ? [...prev.transcript, newSegment]
             : prev.transcript;
 
-          // Debounced note update — fire 700ms after last chunk
           if (autoNoteTimeoutRef.current) clearTimeout(autoNoteTimeoutRef.current);
           autoNoteTimeoutRef.current = setTimeout(() => {
             updateProgressiveNotes(rawTranscriptRef.current, mediaRef.current);
@@ -308,10 +327,9 @@ export const App: React.FC = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [updateProgressiveNotes]);
 
-  // Voice Command Dispatcher
+  // Voice Commands Handler
   const handleVoiceCommand = (command: VoiceCommandAction, rawPhrase: string) => {
     announce(`Voice command recognized: "${command}"`);
-    console.log("Voice Command Triggered:", command, rawPhrase);
 
     if (command === 'START_NOTES') {
       if (!isRecording) handleStartRecording();
@@ -323,36 +341,52 @@ export const App: React.FC = () => {
     } else if (command === 'CAPTURE_SCREEN') {
       announce("Voice command: Capturing current lecture screen");
     } else if (command === 'PODCAST_MODE') {
-      setActiveTab('podcast');
+      setActiveView('podcast');
       announce("Switching to Podcast Mode");
     } else if (command === 'SUMMARIZE') {
       handleQuickSummary();
     }
   };
 
-  // Keyboard Shortcuts Handler
+  // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        if (e.key === 'Escape') {
+          setIsSearchModalOpen(false);
+          setSmartToolResult(null);
+          setExportModalLecture(null);
+          setIsCameraModalOpen(false);
+          setIsApiKeyModalOpen(false);
+        }
         return;
       }
 
-      if (e.altKey && (e.key === 's' || e.key === 'S')) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setIsSearchModalOpen(prev => !prev);
+      } else if (e.altKey && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
         if (isRecording) handleStopRecording();
         else handleStartRecording();
       } else if (e.altKey && (e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
-        setActiveTab('podcast');
-      } else if (e.altKey && (e.key === 'c' || e.key === 'C')) {
-        e.preventDefault();
-        setIsCameraModalOpen(true);
+        setActiveView('podcast');
       } else if (e.altKey && (e.key === 'n' || e.key === 'N')) {
         e.preventDefault();
-        setActiveTab('notes');
+        setActiveView('notes');
       } else if (e.altKey && (e.key === 'm' || e.key === 'M')) {
         e.preventDefault();
-        setActiveTab('mindmap');
+        setActiveView('mindmap');
+      } else if (e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        setActiveView('timeline');
+      } else if (e.key === 'Escape') {
+        setIsSearchModalOpen(false);
+        setSmartToolResult(null);
+        setExportModalLecture(null);
+        setIsCameraModalOpen(false);
+        setIsApiKeyModalOpen(false);
       }
     };
 
@@ -360,7 +394,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isRecording]);
 
-  // Toggle Voice Activation Switch
+  // Toggle Voice Activation
   const handleToggleVoiceActivation = async () => {
     const nextState = !isVoiceListening;
     const success = await speechService.setVoiceActivation(nextState);
@@ -373,15 +407,10 @@ export const App: React.FC = () => {
 
   // Recording Controls
   const handleStartRecording = () => {
-    // Bump session counter
     recordingSessionRef.current += 1;
-
-    // Snapshot existing sections so new session appends after them
     setSession(prev => {
       const existingSections = prev.notes?.sections ?? [];
-      // Filter out any leftover live section from a previous session
       previousSectionsRef.current = existingSections.filter(s => s.id !== 'sec-live');
-      // Reset only the current transcript — keep notes history
       rawTranscriptRef.current = '';
       return {
         ...prev,
@@ -391,13 +420,9 @@ export const App: React.FC = () => {
     });
 
     setIsRecording(true);
-    setActiveTab('notes');
+    setActiveView('live');
     speechService.startRecordingNotes();
     announce('Live lecture recording started. Notes are writing live on screen!');
-
-    setTimeout(() => {
-      document.getElementById('notes-view-root')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 200);
   };
 
   const handleStopRecording = () => {
@@ -407,9 +432,8 @@ export const App: React.FC = () => {
     handleGenerateNotes();
   };
 
-  // Generate Notes — appends new session sections instead of replacing everything
+  // Generate Notes with AI
   const handleGenerateNotes = async () => {
-    // Capture transcript at this moment
     const currentTranscript = rawTranscriptRef.current ||
       session.transcript.map(t => t.text).join(' ');
 
@@ -425,8 +449,6 @@ export const App: React.FC = () => {
 
       setSession(prev => {
         const kept = previousSectionsRef.current;
-
-        // Add a session divider section at the top of the new batch
         const divider = {
           id: `divider-${sessionNum}`,
           timestamp: 0,
@@ -435,7 +457,6 @@ export const App: React.FC = () => {
           bulletPoints: [],
         };
 
-        // Re-stamp all new section IDs with session number so they never clash
         const newSections = (generatedNotes.sections ?? []).map((s: any, i: number) => ({
           ...s,
           id: `s${sessionNum}-${i}`
@@ -447,7 +468,6 @@ export const App: React.FC = () => {
           ...newSections
         ];
 
-        // Merge key terms & action items (deduplicate by term/id)
         const existingTerms = prev.notes?.keyTerms ?? [];
         const newTerms = generatedNotes.keyTerms ?? [];
         const termNames = new Set(existingTerms.map((t: any) => t.term));
@@ -477,18 +497,17 @@ export const App: React.FC = () => {
         };
       });
 
-      // Snapshot the now-merged sections for the next session
       previousSectionsRef.current = [];
       setIsGeneratingNotes(false);
-      setActiveTab('notes');
-      announce('Smart notes synthesised successfully!');
+      setActiveView('notes');
+      announce('Smart notes synthesized successfully!');
     } catch (err) {
       console.error('Failed to generate notes:', err);
       setIsGeneratingNotes(false);
     }
   };
 
-  // Handle New Lecture Session
+  // Create New Lecture
   const handleNewLecture = () => {
     const newSession: LectureSession = {
       id: `session-${Date.now()}`,
@@ -511,12 +530,83 @@ export const App: React.FC = () => {
         actionItems: []
       }
     };
+    saveLecture(newSession);
     setSession(newSession);
-    setActiveTab('notes');
+    setActiveView('live');
     announce("Created new empty lecture session. Ready to record!");
   };
 
-  // Right-Click Context Menu Trigger
+  // ⚡ Dedicated Judge Demo Mode Launcher (3-Minute Automated Flow)
+  const handleStartDemoMode = () => {
+    setIsDemoMode(true);
+    const demoSession: LectureSession = {
+      id: `demo-quantum-${Date.now()}`,
+      title: 'Demo: Deep Learning & Scaled Attention Mechanisms',
+      subject: 'Computer Science & AI',
+      date: 'August 14, 2026',
+      duration: 180,
+      isDemo: true,
+      rawTranscript: `Welcome class! Today we are discussing deep neural networks and attention mechanisms. In sequence modeling, traditional Recurrent Neural Networks suffered from vanishing gradients over long context windows. In 2017, the breakthrough paper 'Attention Is All You Need' introduced the Transformer architecture. The fundamental operation is Scaled Dot-Product Attention: Attention(Q, K, V) = softmax( (Q * K^T) / sqrt(d_k) ) * V. Let me capture this slide on the whiteboard so you can inspect the multi-head projections. Notice that dividing by the square root of key dimension d_k scales dot products to prevent softmax saturation.`,
+      transcript: [
+        { id: 'dt-1', timestamp: 0, speaker: 'Prof. Carter (Demo)', text: 'Welcome class! Today we are discussing deep neural networks and attention mechanisms.' },
+        { id: 'dt-2', timestamp: 15, speaker: 'Prof. Carter (Demo)', text: 'In sequence modeling, traditional Recurrent Neural Networks suffered from vanishing gradients over long context windows.' },
+        { id: 'dt-3', timestamp: 35, speaker: 'Prof. Carter (Demo)', text: "In 2017, the breakthrough paper 'Attention Is All You Need' introduced the Transformer architecture." },
+        { id: 'dt-4', timestamp: 65, speaker: 'Prof. Carter (Demo)', text: 'The fundamental operation is Scaled Dot-Product Attention: Attention(Q, K, V) = softmax( (Q * K^T) / sqrt(d_k) ) * V.' }
+      ],
+      media: [SAMPLE_MEDIA_NEURAL],
+      notes: {
+        title: 'Transformer Architecture & Scaled Dot-Product Attention',
+        executiveSummary: 'This lecture examines why Scaled Dot-Product Attention replaced Recurrent Neural Networks, providing multi-head query-key-value transformations across context windows.',
+        keyTakeaways: [
+          'Attention(Q, K, V) = softmax((Q * K^T) / √d_k) * V eliminates sequential bottleneck.',
+          'Dividing by √d_k prevents vanishing gradients during softmax calculation.',
+          'Multi-Head attention allows joint representation across different representation subspaces.'
+        ],
+        sections: [
+          {
+            id: 'sec-d1',
+            timestamp: 0,
+            title: '1. Limitations of RNNs & The Attention Breakthrough',
+            content: 'Traditional sequential architectures process tokens step-by-step, making parallel training impossible over long sequence lengths.',
+            bulletPoints: [
+              'Recurrent bottleneck eliminated by self-attention.',
+              'O(1) sequential operations per layer.'
+            ],
+            keyFormula: '\\text{Attention}(Q, K, V) = \\text{softmax}\\left(\\frac{QK^T}{\\sqrt{d_k}}\\right)V',
+            mediaId: SAMPLE_MEDIA_NEURAL.id
+          }
+        ],
+        keyTerms: [
+          { term: 'Attention Mechanism', definition: 'A mechanism allowing models to dynamically weigh the importance of different tokens in a sequence.' },
+          { term: 'Softmax Saturation', definition: 'Extremely large dot products push softmax into regions with vanishingly small gradients.' }
+        ],
+        actionItems: [
+          { id: 'dact-1', text: 'Implement MultiHeadAttention in PyTorch', completed: true },
+          { id: 'dact-2', text: 'Calculate Q, K, V tensor dimensions for sequence length N', completed: false }
+        ],
+        flashcards: [
+          { id: 'dfc-1', front: 'What is the mathematical formula for Scaled Dot-Product Attention?', back: 'Attention(Q, K, V) = softmax((Q K^T) / √d_k) V', category: 'Deep Learning' },
+          { id: 'dfc-2', front: 'Why do we divide by √d_k in scaled attention?', back: 'To scale large dot products so softmax gradients do not vanish.', category: 'Math Details' }
+        ],
+        quiz: [
+          {
+            id: 'dq-1',
+            question: 'What operation is used to prevent softmax saturation in scaled attention?',
+            options: ['Multiplying by sequence length', 'Dividing by √d_k', 'Applying L2 regularization', 'Adding bias vectors'],
+            correctIndex: 1,
+            explanation: 'Dividing by the square root of key dimension d_k prevents dot products from growing excessively large.'
+          }
+        ]
+      }
+    };
+
+    saveLecture(demoSession);
+    setSession(demoSession);
+    setActiveView('timeline');
+    announce("Launched Judge Demo Mode. Viewing unified lecture timeline!");
+  };
+
+  // Context Menu Trigger
   const handleContextMenuTrigger = (e: React.MouseEvent, sectionText: string, sectionId?: string) => {
     e.preventDefault();
     const selected = window.getSelection()?.toString().trim() || sectionText;
@@ -529,7 +619,7 @@ export const App: React.FC = () => {
     });
   };
 
-  // Handle Action Selected from Context Menu
+  // Context Menu Actions
   const handleContextMenuAction = async (action: 'summary' | 'eli5' | 'flashcards' | 'quiz' | 'mindmap' | 'speak' | 'askAi') => {
     const text = contextMenu.selectedText || session.notes?.executiveSummary || session.rawTranscript;
 
@@ -610,7 +700,7 @@ export const App: React.FC = () => {
     }));
   };
 
-  // Add Captured Media (From Screen Observer or Camera) AND automatically insert into Notes!
+  // Add Captured Media (From Screen Observer or Camera)
   const handleMediaCaptured = (mediaItem: LectureMedia) => {
     setSession(prev => {
       const updatedMedia = [mediaItem, ...prev.media];
@@ -657,81 +747,141 @@ export const App: React.FC = () => {
     }));
   };
 
+  // Handle Search Result Click
+  const handleSelectSearchResult = (result: GlobalSearchResult) => {
+    handleSelectLecture(result.lectureId);
+    if (result.type === 'slide') setActiveView('media');
+    else if (result.type === 'transcript') setActiveView('timeline');
+    else setActiveView('notes');
+  };
+
+  // Handle Delete Lecture
+  const handleDeleteLecture = (id: string) => {
+    deleteLecture(id);
+    const updatedLectures = getAllLectures();
+    setLectures(updatedLectures);
+    if (activeLectureId === id && updatedLectures.length > 0) {
+      setSession(updatedLectures[0]);
+      setActiveLectureIdState(updatedLectures[0].id);
+    }
+    announce('Deleted lecture from library.');
+  };
+
   return (
-    <div className="app-container" onContextMenu={(e) => {
-      if (!contextMenu.visible && window.getSelection()?.toString().trim()) {
-        handleContextMenuTrigger(e, window.getSelection()!.toString().trim());
-      }
-    }}>
+    <div 
+      className="app-container" 
+      onContextMenu={(e) => {
+        if (!contextMenu.visible && window.getSelection()?.toString().trim()) {
+          handleContextMenuTrigger(e, window.getSelection()!.toString().trim());
+        }
+      }}
+    >
       {/* Top Sticky Header */}
       <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        activeView={activeView}
+        setActiveView={setActiveView}
         isVoiceListening={isVoiceListening}
         isRecording={isRecording}
         onNewLecture={handleNewLecture}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        onOpenSearchModal={() => setIsSearchModalOpen(true)}
+        onStartDemoMode={handleStartDemoMode}
         hasApiKey={hasApiKey}
         lectureTitle={session.notes?.title || session.title}
         onToggleVoiceActivation={handleToggleVoiceActivation}
         lastHeardPhrase={lastHeardPhrase}
+        isDemoMode={isDemoMode}
       />
 
       {/* Main Container */}
       <main className="main-content">
-        {/* Lecture Recorder & Auto Screen Observer Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-          <LectureRecorder
-            isRecording={isRecording}
-            onStartRecording={handleStartRecording}
-            onStopRecording={handleStopRecording}
-            transcript={session.transcript}
-            rawTranscript={session.rawTranscript}
-            onTranscriptUpdate={(newSeg) => {
-              setSession(prev => {
-                const updatedRaw = `${prev.rawTranscript} ${newSeg.text}`.trim();
-                return {
-                  ...prev,
-                  duration: prev.duration + 4,
-                  rawTranscript: updatedRaw,
-                  transcript: [...prev.transcript, newSeg]
-                };
-              });
-              updateProgressiveNotes(`${session.rawTranscript} ${newSeg.text}`.trim(), session.media);
-            }}
-            onOpenCaptureModal={() => setIsCameraModalOpen(true)}
-            onGenerateNotes={handleGenerateNotes}
-            isGenerating={isGeneratingNotes}
-            audioLevel={audioLevel}
-            onVoiceTriggerTest={(cmd) => handleVoiceCommand(cmd as any, 'manual trigger')}
-            onToggleVoiceActivation={handleToggleVoiceActivation}
-            isVoiceListening={isVoiceListening}
+        {/* VIEW 1: Dashboard View */}
+        {activeView === 'dashboard' && (
+          <DashboardView
+            analytics={analytics}
+            recentLectures={lectures.slice(0, 6)}
+            onStartNewLecture={handleNewLecture}
+            onSelectLecture={handleSelectLecture}
+            onDeleteLecture={handleDeleteLecture}
+            onStartDemoMode={handleStartDemoMode}
+            onOpenExportModal={(lec) => setExportModalLecture(lec)}
+            onNavigateView={(vw) => setActiveView(vw)}
           />
+        )}
 
-          {/* Live Note Panel — shows notes being built in real-time */}
-          <LiveNotePanel
-            notes={session.notes}
-            isRecording={isRecording}
-            isGenerating={isGeneratingNotes}
-            rawTranscript={session.rawTranscript}
+        {/* VIEW 2: Live Recording & Real-Time Note Writer */}
+        {activeView === 'live' && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.25rem' }}>
+            <LectureRecorder
+              isRecording={isRecording}
+              onStartRecording={handleStartRecording}
+              onStopRecording={handleStopRecording}
+              transcript={session.transcript}
+              rawTranscript={session.rawTranscript}
+              onTranscriptUpdate={(newSeg) => {
+                setSession(prev => {
+                  const updatedRaw = `${prev.rawTranscript} ${newSeg.text}`.trim();
+                  return {
+                    ...prev,
+                    duration: prev.duration + 4,
+                    rawTranscript: updatedRaw,
+                    transcript: [...prev.transcript, newSeg]
+                  };
+                });
+                updateProgressiveNotes(`${session.rawTranscript} ${newSeg.text}`.trim(), session.media);
+              }}
+              onOpenCaptureModal={() => setIsCameraModalOpen(true)}
+              onGenerateNotes={handleGenerateNotes}
+              isGenerating={isGeneratingNotes}
+              audioLevel={audioLevel}
+              onVoiceTriggerTest={(cmd) => handleVoiceCommand(cmd as any, 'manual trigger')}
+              onToggleVoiceActivation={handleToggleVoiceActivation}
+              isVoiceListening={isVoiceListening}
+            />
+
+            <LiveNotePanel
+              notes={session.notes}
+              isRecording={isRecording}
+              isGenerating={isGeneratingNotes}
+              rawTranscript={session.rawTranscript}
+            />
+          </div>
+        )}
+
+        {/* VIEW 3: Lectures Library */}
+        {activeView === 'library' && (
+          <LecturesLibraryView
+            lectures={lectures}
+            onSelectLecture={handleSelectLecture}
+            onDeleteLecture={handleDeleteLecture}
+            onNewLecture={handleNewLecture}
+            onOpenExportModal={(lec) => setExportModalLecture(lec)}
           />
-        </div>
+        )}
 
-        {/* Tab 1: Smart Notes View (Displays Notes writing live directly on screen) */}
-        {activeTab === 'notes' && session.notes && (
+        {/* VIEW 4: Chronological Lecture Timeline */}
+        {activeView === 'timeline' && (
+          <LectureTimelineView
+            session={session}
+            onSelectTimestamp={(secs) => announce(`Jumped to timeline timestamp ${secs}s`)}
+          />
+        )}
+
+        {/* VIEW 5: Smart Notes View */}
+        {activeView === 'notes' && session.notes && (
           <NotesView
             notes={session.notes}
             media={session.media}
-            onOpenPodcast={() => setActiveTab('podcast')}
-            onOpenMindmap={() => setActiveTab('mindmap')}
+            onOpenPodcast={() => setActiveView('podcast')}
+            onOpenMindmap={() => setActiveView('mindmap')}
             onToggleActionItem={handleToggleActionItem}
             onContextMenuTrigger={handleContextMenuTrigger}
             isRecording={isRecording}
           />
         )}
 
-        {/* Tab 2: Interactive Podcast Studio */}
-        {activeTab === 'podcast' && session.notes && (
+        {/* VIEW 6: Podcast Studio */}
+        {activeView === 'podcast' && session.notes && (
           <PodcastStudio
             notes={session.notes}
             initialPodcast={session.podcast}
@@ -739,16 +889,16 @@ export const App: React.FC = () => {
           />
         )}
 
-        {/* Tab 3: Slide & Whiteboard Vision Gallery */}
-        {activeTab === 'media' && (
+        {/* VIEW 7: Slide & Whiteboard Vision Gallery */}
+        {activeView === 'media' && (
           <SlideGalleryView
             media={session.media}
             onOpenCaptureModal={() => setIsCameraModalOpen(true)}
           />
         )}
 
-        {/* Tab 4: Concept Mindmap */}
-        {activeTab === 'mindmap' && (
+        {/* VIEW 8: Concept Mindmap */}
+        {activeView === 'mindmap' && (
           <MindmapView
             mindmap={session.notes?.mindmap}
             lectureTitle={session.notes?.title || session.title}
@@ -771,6 +921,20 @@ export const App: React.FC = () => {
         onSaved={() => setHasApiKey(!!getStoredApiKey())}
       />
 
+      {/* Global Search Modal (Ctrl+K) */}
+      <GlobalSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        onSelectResult={handleSelectSearchResult}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={!!exportModalLecture}
+        onClose={() => setExportModalLecture(null)}
+        lecture={exportModalLecture}
+      />
+
       {/* Right-Click Accessible Context Menu */}
       <ContextMenu
         state={contextMenu}
@@ -784,7 +948,12 @@ export const App: React.FC = () => {
         onClose={() => setSmartToolResult(null)}
         result={smartToolResult}
         onAskAiSubmit={async (q) => {
-          const res = await explainLikeImFive(q);
+          const res = await answerLectureQuestion(q, {
+            title: session.title,
+            transcript: session.rawTranscript,
+            summary: session.notes?.executiveSummary || '',
+            notesSnippet: session.notes?.sections?.map(s => s.content).join(' ') || ''
+          });
           return res;
         }}
       />

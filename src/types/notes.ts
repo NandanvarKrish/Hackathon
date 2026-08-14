@@ -10,6 +10,9 @@ export interface LectureSession {
   notes?: SmartNote;
   media: LectureMedia[];
   podcast?: PodcastScript;
+  createdAt?: string;
+  updatedAt?: string;
+  isDemo?: boolean;
 }
 
 export interface TranscriptSegment {
@@ -29,6 +32,7 @@ export interface SmartNote {
   quiz?: QuizQuestion[];
   flashcards?: Flashcard[];
   mindmap?: MindmapData;
+  examFocus?: string[];
 }
 
 export interface NoteSection {
@@ -74,6 +78,7 @@ export interface Flashcard {
   front: string;
   back: string;
   category: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
   mastered?: boolean;
 }
 
@@ -83,6 +88,14 @@ export interface QuizQuestion {
   options: string[];
   correctIndex: number;
   explanation: string;
+}
+
+export interface QuizAttempt {
+  id: string;
+  lectureId: string;
+  timestamp: string;
+  score: number;
+  totalQuestions: number;
 }
 
 export interface MindmapNode {
@@ -95,6 +108,42 @@ export interface MindmapNode {
 export interface MindmapData {
   root: MindmapNode;
 }
+
+export interface StudyPlan {
+  id: string;
+  lectureTitle: string;
+  summary: string;
+  milestones: { title: string; targetMinutes: number; tasks: string[] }[];
+}
+
+export interface UserAnalytics {
+  totalLectures: number;
+  totalStudyTimeSeconds: number;
+  flashcardsMasteredCount: number;
+  quizAveragePercent: number;
+  conceptsLearnedCount: number;
+  completedActionItemsCount: number;
+}
+
+export interface GlobalSearchResult {
+  lectureId: string;
+  lectureTitle: string;
+  subject: string;
+  type: 'transcript' | 'note' | 'term' | 'slide' | 'flashcard';
+  title: string;
+  snippet: string;
+  timestamp?: number;
+}
+
+export type ActiveViewType = 
+  | 'dashboard'
+  | 'live'
+  | 'library'
+  | 'timeline'
+  | 'notes'
+  | 'podcast'
+  | 'media'
+  | 'mindmap';
 
 export interface ContextMenuState {
   visible: boolean;
@@ -113,7 +162,9 @@ export type ActiveModalType =
   | 'mindmap'
   | 'camera'
   | 'apiKey'
-  | 'askAi';
+  | 'askAi'
+  | 'export'
+  | 'search';
 
 export interface SmartToolResult {
   type: ActiveModalType;
@@ -124,4 +175,7 @@ export interface SmartToolResult {
   mindmap?: MindmapData;
   eli5Text?: string;
   summaryPoints?: string[];
+  isFallback?: boolean;
 }
+
+export type ExportFormatType = 'txt' | 'md' | 'csv' | 'json' | 'package';

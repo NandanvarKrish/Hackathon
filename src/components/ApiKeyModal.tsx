@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Key, ShieldCheck, X, Sparkles, ExternalLink } from 'lucide-react';
+import { Key, ShieldCheck, X, Sparkles, ExternalLink, Server } from 'lucide-react';
 import { getStoredApiKey, setStoredApiKey } from '../services/geminiService';
 
 interface ApiKeyModalProps {
@@ -41,7 +41,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
         aria-labelledby="api-modal-title"
         className="card"
         style={{
-          maxWidth: '520px',
+          maxWidth: '540px',
           width: '100%',
           background: 'var(--bg-secondary)',
           border: '1px solid var(--border-medium)',
@@ -73,7 +73,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
           </div>
           <div>
             <h2 id="api-modal-title" style={{ fontSize: '1.25rem', fontWeight: 700 }}>
-              Gemini API Key
+              Gemini API Key Setup
             </h2>
             <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
               Powers real-time vision OCR, smart note generation, and podcast synthesis.
@@ -86,7 +86,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
             htmlFor="gemini-key-input" 
             style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-secondary)' }}
           >
-            Google AI Studio API Key:
+            Google AI Studio API Key (Development Mode):
           </label>
           <div style={{ position: 'relative' }}>
             <input
@@ -113,8 +113,8 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
         <div style={{
           padding: '0.85rem 1rem',
           borderRadius: 'var(--radius-md)',
-          background: 'rgba(16, 185, 129, 0.08)',
-          border: '1px solid rgba(16, 185, 129, 0.2)',
+          background: 'rgba(56, 189, 248, 0.08)',
+          border: '1px solid rgba(56, 189, 248, 0.2)',
           display: 'flex',
           gap: '0.75rem',
           alignItems: 'flex-start',
@@ -122,9 +122,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ isOpen, onClose, onSav
           fontSize: '0.825rem',
           color: 'var(--text-secondary)'
         }}>
-          <ShieldCheck size={18} color="var(--accent-emerald-light)" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <Server size={18} color="var(--accent-cyan-light)" style={{ flexShrink: 0, marginTop: '2px' }} />
           <div>
-            <span>Your key is saved locally in your browser only. (If left blank, EchoNote AI seamlessly runs in <strong>Intelligent Offline/Demo Mode</strong> with full interactive simulation).</span>
+            <span><strong>Production Security Notice:</strong> In production deployments, client-side keys are proxied via secure serverless functions (`VITE_GEMINI_API_KEY`). Local keys entered here are stored strictly in your browser's LocalStorage.</span>
           </div>
         </div>
 
