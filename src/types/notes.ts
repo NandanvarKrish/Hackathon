@@ -19,6 +19,15 @@ export interface TranscriptSegment {
   text: string;
 }
 
+export type SummaryFocusMode = 'standard' | 'exam_cheatsheet' | 'intuitive' | 'technical';
+
+export interface ExamCheatSheet {
+  highYieldFormulas: { name: string; formula: string; explanation: string }[];
+  definitionTable: { term: string; definition: string; examImportance: 'High' | 'Medium' | 'Critical' }[];
+  examTraps: string[];
+  quickFacts: string[];
+}
+
 export interface SmartNote {
   title: string;
   executiveSummary: string;
@@ -29,6 +38,10 @@ export interface SmartNote {
   quiz?: QuizQuestion[];
   flashcards?: Flashcard[];
   mindmap?: MindmapData;
+  examCheatSheet?: ExamCheatSheet;
+  summaryFocusMode?: SummaryFocusMode;
+  intuitiveSummary?: string;
+  technicalSummary?: string;
 }
 
 export interface NoteSection {
@@ -52,17 +65,27 @@ export interface LectureMedia {
   tags: string[];
 }
 
+export type PodcastFormat = 'dual_host' | 'storyteller' | 'speed_run' | 'socratic';
+
+export interface PodcastChapter {
+  id: string;
+  title: string;
+  lineIndex: number;
+  timestampOffset: number;
+}
+
 export interface PodcastScript {
   id: string;
   title: string;
-  format: 'dual_host' | 'storyteller';
+  format: PodcastFormat;
   description: string;
+  chapters?: PodcastChapter[];
   dialogue: PodcastLine[];
 }
 
 export interface PodcastLine {
   id: string;
-  speaker: 'Alex' | 'Jordan' | 'David' | 'User';
+  speaker: 'Alex' | 'Jordan' | 'David' | 'Socrates' | 'Maya' | 'User';
   speakerRole: string;
   text: string;
   timestampOffset: number; // approximate seconds offset

@@ -1,4 +1,14 @@
-import { Flashcard, LectureMedia, MindmapData, PodcastScript, QuizQuestion, SmartNote } from '../types/notes';
+import { 
+  ExamCheatSheet, 
+  Flashcard, 
+  LectureMedia, 
+  MindmapData, 
+  PodcastFormat, 
+  PodcastScript, 
+  QuizQuestion, 
+  SmartNote, 
+  SummaryFocusMode 
+} from '../types/notes';
 
 const GEMINI_API_KEY_STORAGE = 'echonote_gemini_api_key';
 
@@ -284,34 +294,46 @@ function generateDynamicSmartNote(rawTranscript: string, mediaItems: LectureMedi
 }
 
 /**
- * Generate interactive podcast script
+ * Generate interactive podcast script supporting 4 formats and timeline chapters
  */
 export async function generatePodcastScript(
   notes: SmartNote,
-  format: 'dual_host' | 'storyteller' = 'dual_host'
+  format: PodcastFormat = 'dual_host'
 ): Promise<PodcastScript> {
   try {
+    const formatDescriptions: Record<PodcastFormat, string> = {
+      dual_host: 'Dual-Host Conversational Dialogue (Alex & Jordan) with dynamic debate, analogies, and chemistry',
+      storyteller: 'Captivating Narrative Storyteller (David) taking the listener on an immersive audio journey',
+      speed_run: '5-Minute Rapid-Fire Exam Speed Run (Alex & Jordan) packing maximum high-yield facts into fast-paced bullet points',
+      socratic: 'Socratic Teacher & Student Dialogue (Socrates & Maya) probing deep conceptual questions with intuitive answers'
+    };
+
     const prompt = `Convert the following lecture notes into an ultra-engaging, accessible audio podcast script.
 
-FORMAT: ${format === 'dual_host' ? 'Dual-Host Conversational Dialogue (Alex & Jordan) with engaging debate, analogies, and chemistry' : 'Captivating Narrative Storyteller (David)'}
+FORMAT REQUIREMENT: ${formatDescriptions[format]}
 
 LECTURE TITLE: ${notes.title}
 SUMMARY: ${notes.executiveSummary}
 TAKEAWAYS: ${notes.keyTakeaways.join('; ')}
 SECTIONS: ${JSON.stringify(notes.sections)}
 
-Return a JSON object:
+Return a JSON object matching this schema:
 {
   "id": "pod-${Date.now()}",
-  "title": "${notes.title} - The Deep Dive",
+  "title": "${notes.title} - ${format === 'speed_run' ? '5-Min Cram' : format === 'socratic' ? 'Socratic Studio' : format === 'storyteller' ? 'Storyteller Edition' : 'Deep Dive'}",
   "format": "${format}",
-  "description": "An interactive audio discussion breaking down key concepts with conversational clarity.",
+  "description": "Interactive educational audio script designed for high retention.",
+  "chapters": [
+    { "id": "chap-1", "title": "1. Introduction & Thesis", "lineIndex": 0, "timestampOffset": 0 },
+    { "id": "chap-2", "title": "2. Core Mechanisms", "lineIndex": 2, "timestampOffset": 15 },
+    { "id": "chap-3", "title": "3. High-Yield Exam Review", "lineIndex": 4, "timestampOffset": 30 }
+  ],
   "dialogue": [
     {
       "id": "line-1",
-      "speaker": "${format === 'dual_host' ? 'Alex' : 'David'}",
-      "speakerRole": "${format === 'dual_host' ? 'Host & Enthusiast' : 'Narrator'}",
-      "text": "Welcome back everyone! Today we are tackling something truly mind-bending...",
+      "speaker": "${format === 'storyteller' ? 'David' : format === 'socratic' ? 'Socrates' : 'Alex'}",
+      "speakerRole": "${format === 'storyteller' ? 'Narrator' : format === 'socratic' ? 'Professor' : 'Host'}",
+      "text": "Dialogue text...",
       "timestampOffset": 0,
       "emotion": "excited"
     }
@@ -323,6 +345,84 @@ Return a JSON object:
       contents,
       "You are a top-tier podcast producer creating addictive educational audio scripts."
     );
+    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
+    const parsed: PodcastScript = JSON.parse(cleaned);
+
+    // Fallback chapters if API didn't output chapters array
+    if (!parsed.chapters || parsed.chapters.length === 0) {
+      parsed.chapters = [
+        { id: 'chap-1', title: '1. Introduction & Central Thesis', lineIndex: 0, timestampOffset: 0 },
+        { id: 'chap-2', title: '2. Mechanics & Deep Breakdown', lineIndex: Math.floor(parsed.dialogue.length * 0.35), timestampOffset: 15 },
+        { id: 'chap-3', title: '3. Key Takeaways & Exam Applications', lineIndex: Math.floor(parsed.dialogue.length * 0.7), timestampOffset: 30 }
+      ];
+    }
+
+    return parsed;
+  } catch (err) {
+    return generateFallbackPodcast(notes, format);
+  }
+}
+
+/**
+ * Generate Tailored Lecture Summary based on user focus mode (Standard, Exam Cheat Sheet, Intuitive Analogy, Technical/Math)
+ */
+export async function generateTailoredSummary(
+  notes: SmartNote,
+  focusMode: SummaryFocusMode = 'standard',
+  customTopicFocus?: string
+): Promise<{ executiveSummary: string; keyTakeaways: string[]; cheatSheet?: ExamCheatSheet }> {
+  try {
+    const prompt = `You are an elite academic professor and exam prep specialist.
+Generate a tailored summary for the lecture titled "${notes.title}".
+
+FOCUS MODE: ${focusMode.toUpperCase()}
+CUSTOM USER FOCUS: ${customTopicFocus || 'None'}
+ORIGINAL SUMMARY: ${notes.executiveSummary}
+SECTIONS: ${JSON.stringify(notes.sections)}
+
+Return a JSON object:
+{
+  "executiveSummary": "A specialized overview written specifically with ${focusMode} tone and depth.",
+  "keyTakeaways": ["Point 1", "Point 2", "Point 3", "Point 4"],
+  "cheatSheet": {
+    "highYieldFormulas": [
+      { "name": "Formula Name", "formula": "\\\\text{LaTeX formula}", "explanation": "Why this formula matters for exams." }
+    ],
+    "definitionTable": [
+      { "term": "Term Name", "definition": "Clear concise definition", "examImportance": "Critical" }
+    ],
+    "examTraps": ["Common student mistake 1", "Tricky concept distinction 2"],
+    "quickFacts": ["Fact 1", "Fact 2"]
+  }
+}`;
+
+    const contents = [{ parts: [{ text: prompt }] }];
+    const raw = await callGeminiApi(
+      contents,
+      "You are a top-tier university tutor creating high-yield lecture summaries."
+    );
+    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (err) {
+    return {
+      executiveSummary: focusMode === 'intuitive' 
+        ? `Imagine ${notes.title} as a giant clockwork mechanism. ${notes.executiveSummary}`
+        : focusMode === 'technical'
+        ? `Mathematical & Algorithmic Formulation of ${notes.title}: ${notes.executiveSummary}`
+        : notes.executiveSummary,
+      keyTakeaways: notes.keyTakeaways,
+      cheatSheet: generateFallbackCheatSheet(notes)
+    };
+  }
+}
+
+/**
+ * Generate Exam Cheat Sheet
+ */
+export async function generateExamCheatSheet(notes: SmartNote): Promise<ExamCheatSheet> {
+  const result = await generateTailoredSummary(notes, 'exam_cheatsheet');
+  return result.cheatSheet || generateFallbackCheatSheet(notes);
+}
     const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
     return JSON.parse(cleaned);
   } catch (err) {
