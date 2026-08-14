@@ -36,50 +36,70 @@ async function callGeminiApi(
   responseSchema?: any
 ): Promise<string> {
   const apiKey = getStoredApiKey();
-  if (!apiKey) {
-    throw new Error('NO_API_KEY');
-  }
 
-  // Primary model endpoint
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  // Mode A: Direct client API call if key is present (Local Dev / Static Hosting)
+  if (apiKey) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
-  const bodyPayload: any = {
-    contents,
-  };
-
-  if (systemInstruction) {
-    bodyPayload.systemInstruction = {
-      parts: [{ text: systemInstruction }],
+    const bodyPayload: any = {
+      contents,
     };
+
+    if (systemInstruction) {
+      bodyPayload.systemInstruction = {
+        parts: [{ text: systemInstruction }],
+      };
+    }
+
+    if (responseSchema) {
+      bodyPayload.generationConfig = {
+        responseMimeType: 'application/json',
+        responseSchema,
+      };
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(bodyPayload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || `Gemini API HTTP Error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const candidate = data.candidates?.[0];
+    if (!candidate || !candidate.content?.parts?.[0]?.text) {
+      throw new Error('No content returned from Gemini');
+    }
+
+    return candidate.content.parts[0].text;
   }
 
-  if (responseSchema) {
-    bodyPayload.generationConfig = {
-      responseMimeType: 'application/json',
-      responseSchema,
-    };
+  // Mode B: Production Serverless API Proxy Route (/api/gemini)
+  try {
+    const proxyResponse = await fetch('/api/gemini', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents, systemInstruction, responseSchema })
+    });
+
+    if (proxyResponse.ok) {
+      const data = await proxyResponse.json();
+      const candidate = data.candidates?.[0];
+      if (candidate?.content?.parts?.[0]?.text) {
+        return candidate.content.parts[0].text;
+      }
+    }
+  } catch (err) {
+    // Backend route not available
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(bodyPayload),
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error?.message || `Gemini API HTTP Error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const candidate = data.candidates?.[0];
-  if (!candidate || !candidate.content?.parts?.[0]?.text) {
-    throw new Error('No content returned from Gemini');
-  }
-
-  return candidate.content.parts[0].text;
+  throw new Error('NO_API_KEY');
 }
 
 /**
