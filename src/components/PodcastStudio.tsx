@@ -16,9 +16,14 @@ import {
   Flame, 
   HelpCircle,
   CheckCircle2,
-  CornerDownRight
+  CornerDownRight,
+  Download,
+  Copy,
+  Zap,
+  GraduationCap,
+  ListOrdered
 } from 'lucide-react';
-import { PodcastScript, PodcastLine, SmartNote } from '../types/notes';
+import { PodcastScript, PodcastLine, PodcastFormat, SmartNote } from '../types/notes';
 import { speechService } from '../services/speechService';
 import { askPodcastHostQuestion, generatePodcastScript } from '../services/geminiService';
 import { useAccessibility } from '../context/AccessibilityContext';
@@ -40,6 +45,7 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1.0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [scriptCopied, setScriptCopied] = useState(false);
 
   // Live Interruption Q&A State
   const [isInterrupting, setIsInterrupting] = useState(false);
@@ -65,12 +71,18 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
     };
   }, []);
 
-  // Regenerate podcast script
-  const handleRegenerateScript = async (format: 'dual_host' | 'storyteller') => {
+  // Regenerate podcast script with format selection
+  const handleRegenerateScript = async (format: PodcastFormat) => {
     setIsGenerating(true);
     speechService.stopSpeaking();
     setIsPlaying(false);
-    announce(`Synthesizing ${format === 'dual_host' ? 'Dual-Host Podcast' : 'Storyteller Narrative'} with AI...`);
+    const formatLabels: Record<PodcastFormat, string> = {
+      dual_host: 'Dual-Host Debate',
+      storyteller: 'Storyteller Narrative',
+      speed_run: '5-Minute Exam Cram Speed Run',
+      socratic: 'Socratic Q&A Studio'
+    };
+    announce(`Synthesizing ${formatLabels[format]} with AI...`);
 
     try {
       const generated = await generatePodcastScript(notes, format);
@@ -83,6 +95,36 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
       console.error("Podcast generation failed:", err);
       setIsGenerating(false);
     }
+  };
+
+  // Copy Podcast Script as Markdown
+  const handleCopyScript = () => {
+    if (!podcast) return;
+    let txt = `# ${podcast.title}\nFormat: ${podcast.format}\n\n`;
+    podcast.dialogue.forEach(line => {
+      txt += `**${line.speaker} (${line.speakerRole})**: ${line.text}\n\n`;
+    });
+    navigator.clipboard.writeText(txt);
+    setScriptCopied(true);
+    announce("Podcast script copied to clipboard!");
+    setTimeout(() => setScriptCopied(false), 2000);
+  };
+
+  // Download Podcast Script as .txt File
+  const handleDownloadScript = () => {
+    if (!podcast) return;
+    let txt = `=== ${podcast.title.toUpperCase()} ===\nFormat: ${podcast.format}\n\n`;
+    podcast.dialogue.forEach(line => {
+      txt += `[${line.speaker} - ${line.speakerRole}]: ${line.text}\n\n`;
+    });
+    const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${notes.title.replace(/[^a-z0-9]/gi, '_')}_Podcast_Script.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    announce("Podcast script downloaded");
   };
 
   // Play line by index
