@@ -346,7 +346,7 @@ class SpeechService {
   public speakText(
     text: string,
     options: {
-      speaker?: 'Alex' | 'Jordan' | 'David' | 'User';
+      speaker?: 'Alex' | 'Jordan' | 'David' | 'Socrates' | 'Maya' | 'User';
       rate?: number;
       pitch?: number;
       onBoundary?: (charIndex: number) => void;
@@ -374,10 +374,14 @@ class SpeechService {
         const voice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Zira') || v.name.includes('Samantha') || v.name.includes('Victoria') || v.name.includes('Female')));
         if (voice) utterance.voice = voice;
         utterance.pitch = 1.15;
-      } else if (speaker === 'David') {
-        const voice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Mark')));
+      } else if (speaker === 'David' || speaker === 'Socrates') {
+        const voice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Male') || v.name.includes('Guy') || v.name.includes('Mark') || v.name.includes('George')));
         if (voice) utterance.voice = voice;
-        utterance.pitch = 0.9;
+        utterance.pitch = speaker === 'Socrates' ? 0.85 : 0.9;
+      } else if (speaker === 'Maya') {
+        const voice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Female') || v.name.includes('Zira') || v.name.includes('Google US English')));
+        if (voice) utterance.voice = voice;
+        utterance.pitch = 1.25;
       }
     }
 
