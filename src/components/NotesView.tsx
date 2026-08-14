@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { 
   SmartNote, 
-  LectureMedia 
+  LectureMedia,
+  SummaryFocusMode,
+  ExamCheatSheet
 } from '../types/notes';
 import { 
   Sparkles, 
@@ -15,8 +17,18 @@ import {
   Copy,
   Check,
   Edit3,
-  Mic
+  Mic,
+  GraduationCap,
+  Zap,
+  Lightbulb,
+  FileText,
+  AlertTriangle,
+  Flame,
+  HelpCircle,
+  ToggleLeft,
+  ToggleRight
 } from 'lucide-react';
+import { generateTailoredSummary } from '../services/geminiService';
 import { useAccessibility } from '../context/AccessibilityContext';
 
 interface NotesViewProps {
@@ -26,6 +38,7 @@ interface NotesViewProps {
   onOpenMindmap: () => void;
   onToggleActionItem: (id: string) => void;
   onContextMenuTrigger: (e: React.MouseEvent, sectionText: string, sectionId?: string) => void;
+  onUpdateNotes?: (updated: SmartNote) => void;
   isRecording?: boolean;
 }
 
@@ -36,10 +49,38 @@ const NotesViewComponent: React.FC<NotesViewProps> = ({
   onOpenMindmap,
   onToggleActionItem,
   onContextMenuTrigger,
+  onUpdateNotes,
   isRecording = false
 }) => {
   const { announce } = useAccessibility();
   const [copied, setCopied] = useState(false);
+  const [focusMode, setFocusMode] = useState<SummaryFocusMode>('standard');
+  const [isTldrMode, setIsTldrMode] = useState<boolean>(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState<boolean>(false);
+
+  // Switch Summary Focus & Trigger AI Generation if needed
+  const handleSelectFocusMode = async (mode: SummaryFocusMode) => {
+    setFocusMode(mode);
+    announce(`Switched to ${mode} summary view`);
+
+    if (mode === 'exam_cheatsheet' && !notes.examCheatSheet) {
+      setIsGeneratingSummary(true);
+      try {
+        const res = await generateTailoredSummary(notes, 'exam_cheatsheet');
+        const updated: SmartNote = {
+          ...notes,
+          examCheatSheet: res.cheatSheet,
+          summaryFocusMode: 'exam_cheatsheet'
+        };
+        onUpdateNotes?.(updated);
+        announce("Exam Cheat Sheet generated successfully!");
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsGeneratingSummary(false);
+      }
+    }
+  };
 
   const handleCopyMarkdown = React.useCallback(() => {
     let md = `# ${notes.title}\n\n`;
@@ -135,6 +176,165 @@ const NotesViewComponent: React.FC<NotesViewProps> = ({
         </div>
       )}
 
+      {/* Lecture Summary Focus Mode & View Mode Selector Bar */}
+      <div className="card" style={{
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border-medium)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '1rem',
+        padding: '0.85rem 1.25rem'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)', marginRight: '0.4rem' }}>
+            SUMMARY VIEW:
+          </span>
+
+          <button
+            onClick={() => handleSelectFocusMode('standard')}
+            className={`btn ${focusMode === 'standard' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+          >
+            <FileText size={14} />
+            <span>Standard Overview</span>
+          </button>
+
+          <button
+            onClick={() => handleSelectFocusMode('exam_cheatsheet')}
+            className={`btn ${focusMode === 'exam_cheatsheet' ? 'btn-rose' : 'btn-secondary'}`}
+            style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+          >
+            <GraduationCap size={14} color="#f43f5e" />
+            <span>🎓 High-Yield Exam Cheat Sheet</span>
+          </button>
+
+          <button
+            onClick={() => handleSelectFocusMode('intuitive')}
+            className={`btn ${focusMode === 'intuitive' ? 'btn-emerald' : 'btn-secondary'}`}
+            style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+          >
+            <Lightbulb size={14} color="#10b981" />
+            <span>💡 Intuitive Analogy (ELI5)</span>
+          </button>
+
+          <button
+            onClick={() => handleSelectFocusMode('technical')}
+            className={`btn ${focusMode === 'technical' ? 'btn-cyan' : 'btn-secondary'}`}
+            style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+          >
+            <Zap size={14} color="#38bdf8" />
+            <span>⚡ Math & Formulas</span>
+          </button>
+        </div>
+
+        {/* TL;DR Compact Toggle */}
+        <button
+          onClick={() => setIsTldrMode(prev => !prev)}
+          className={`btn ${isTldrMode ? 'btn-rose' : 'btn-secondary'}`}
+          style={{ padding: '0.4rem 0.85rem', fontSize: '0.82rem' }}
+          title="Toggle 30-Second Compact Bullet Summary"
+        >
+          {isTldrMode ? <ToggleRight size={16} color="#ffffff" /> : <ToggleLeft size={16} />}
+          <span>{isTldrMode ? '⚡ TL;DR 30-Sec View Active' : 'Detailed Notes View'}</span>
+        </button>
+      </div>
+
+      {/* 🎓 HIGH-YIELD EXAM CHEAT SHEET VIEW */}
+      {focusMode === 'exam_cheatsheet' && (
+        <div className="card" style={{ background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.08), rgba(15, 23, 42, 0.95))', border: '1px solid var(--accent-rose)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginBottom: '1rem' }}>
+            <GraduationCap size={24} color="var(--accent-rose-light)" />
+            <div>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                High-Yield Exam Cram Sheet: {notes.title}
+              </h2>
+              <p style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                Curated formulas, definitions, and trap warnings for maximum test score retention.
+              </p>
+            </div>
+          </div>
+
+          {isGeneratingSummary ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--accent-rose-light)' }}>
+              <Sparkles size={28} style={{ animation: 'spin 1.5s linear infinite', marginBottom: '0.5rem' }} />
+              <p>Generating High-Yield Exam Formulas & Definition Table with AI...</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* High Yield Formula Grid */}
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--accent-cyan-light)', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Zap size={16} />
+                  <span>Key Equations & Formulas:</span>
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.85rem' }}>
+                  {(notes.examCheatSheet?.highYieldFormulas || [
+                    { name: 'Conservation Principle', formula: '\\Delta E = W + Q', explanation: 'Total energy remains constant in an isolated system.' },
+                    { name: 'Rate Constant', formula: 'k = A e^{-E_a / RT}', explanation: 'Arrhenius equation linking temperature to reaction velocity.' }
+                  ]).map((item, idx) => (
+                    <div key={idx} style={{ padding: '0.85rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)' }}>
+                      <strong style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{item.name}</strong>
+                      <div style={{ background: 'var(--bg-primary)', padding: '0.5rem', borderRadius: 'var(--radius-sm)', margin: '0.4rem 0', fontFamily: 'monospace', color: 'var(--accent-cyan-light)', fontWeight: 700, fontSize: '0.95rem' }}>
+                        {item.formula}
+                      </div>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{item.explanation}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Definition Table */}
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#34d399', marginBottom: '0.65rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Flame size={16} />
+                  <span>Must-Know Definition Table:</span>
+                </h3>
+                <div style={{ overflowX: 'auto', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', textAlign: 'left' }}>
+                    <thead>
+                      <tr style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)', borderBottom: '1px solid var(--border-medium)' }}>
+                        <th style={{ padding: '0.65rem 1rem' }}>Term</th>
+                        <th style={{ padding: '0.65rem 1rem' }}>Definition</th>
+                        <th style={{ padding: '0.65rem 1rem' }}>Exam Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(notes.examCheatSheet?.definitionTable || notes.keyTerms.map(kt => ({ term: kt.term, definition: kt.definition, examImportance: 'Critical' as const }))).map((row, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid var(--border-subtle)', background: idx % 2 === 0 ? 'rgba(15, 23, 42, 0.4)' : 'transparent' }}>
+                          <td style={{ padding: '0.65rem 1rem', fontWeight: 700, color: 'var(--text-primary)' }}>{row.term}</td>
+                          <td style={{ padding: '0.65rem 1rem', color: 'var(--text-secondary)' }}>{row.definition}</td>
+                          <td style={{ padding: '0.65rem 1rem' }}>
+                            <span className="badge badge-rose" style={{ fontSize: '0.7rem' }}>{row.examImportance || 'Critical'}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Exam Traps Warnings */}
+              <div style={{ padding: '0.85rem 1.15rem', borderRadius: 'var(--radius-md)', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid #f59e0b', color: '#fbbf24' }}>
+                <strong style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem', marginBottom: '0.35rem' }}>
+                  <AlertTriangle size={16} />
+                  <span>Common Exam Traps & Mistakes to Avoid:</span>
+                </strong>
+                <ul style={{ paddingLeft: '1.25rem', fontSize: '0.825rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  {(notes.examCheatSheet?.examTraps || [
+                    "Don't confuse initial boundary conditions with steady-state values.",
+                    "Always check unit dimensions before calculating numerical answers."
+                  ]).map((trap, idx) => (
+                    <li key={idx}>{trap}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Executive Summary & Key Takeaways Card */}
       <div 
         className="card"
@@ -148,7 +348,9 @@ const NotesViewComponent: React.FC<NotesViewProps> = ({
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
           <Sparkles size={20} color="var(--accent-cyan-light)" />
           <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-            Executive Summary & Thesis
+            {focusMode === 'intuitive' ? '💡 Intuitive Analogy & Everyday Picture' :
+             focusMode === 'technical' ? '⚡ Mathematical & Technical Formulation' :
+             'Executive Summary & Central Thesis'}
           </h2>
         </div>
 
@@ -162,7 +364,11 @@ const NotesViewComponent: React.FC<NotesViewProps> = ({
           borderRadius: 'var(--radius-md)',
           borderLeft: '4px solid var(--accent-cyan-light)'
         }}>
-          {notes.executiveSummary}
+          {focusMode === 'intuitive'
+            ? `Think of ${notes.title} like an everyday machine: ${notes.executiveSummary}`
+            : focusMode === 'technical'
+            ? `Formal Definition of ${notes.title}: ${notes.executiveSummary}`
+            : notes.executiveSummary}
           {isRecording && <span style={{ color: 'var(--accent-cyan-light)', animation: 'pulse-wave 1s infinite' }}> ✍️</span>}
         </p>
 

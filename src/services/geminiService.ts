@@ -423,12 +423,6 @@ export async function generateExamCheatSheet(notes: SmartNote): Promise<ExamChea
   const result = await generateTailoredSummary(notes, 'exam_cheatsheet');
   return result.cheatSheet || generateFallbackCheatSheet(notes);
 }
-    const cleaned = raw.replace(/```json\n?|\n?```/g, '').trim();
-    return JSON.parse(cleaned);
-  } catch (err) {
-    return generateFallbackPodcast(notes, format);
-  }
-}
 
 /**
  * Handle live mid-podcast user interruption

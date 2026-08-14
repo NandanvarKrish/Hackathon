@@ -311,7 +311,10 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <span className="badge badge-rose">Interactive Audio Experience</span>
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                {podcast?.format === 'dual_host' ? '🎙️ Dual Host (Alex & Jordan)' : '📖 Immersive Storyteller'}
+                {podcast?.format === 'dual_host' ? '🎙️ Dual Host (Alex & Jordan)' :
+                 podcast?.format === 'speed_run' ? '⚡ 5-Min Exam Cram' :
+                 podcast?.format === 'socratic' ? '🧠 Socratic Studio (Socrates & Maya)' :
+                 '📖 Immersive Storyteller (David)'}
               </span>
             </div>
             <h1 style={{ fontSize: '1.6rem', fontWeight: 800, marginTop: '0.2rem' }}>
@@ -320,53 +323,133 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
           </div>
         </div>
 
-        {/* Format Switcher */}
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        {/* 4 Format Switcher + Script Export */}
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             onClick={() => handleRegenerateScript('dual_host')}
             disabled={isGenerating}
             className={`btn ${podcast?.format === 'dual_host' ? 'btn-rose' : 'btn-secondary'}`}
+            title="Dual-host debate & analogies"
           >
             <Users size={16} />
-            <span>Dual-Host Debate</span>
+            <span>Dual-Host</span>
           </button>
           <button
             onClick={() => handleRegenerateScript('storyteller')}
             disabled={isGenerating}
             className={`btn ${podcast?.format === 'storyteller' ? 'btn-rose' : 'btn-secondary'}`}
+            title="Narrative storytelling"
           >
             <BookOpen size={16} />
-            <span>Storyteller Narrative</span>
+            <span>Storyteller</span>
+          </button>
+          <button
+            onClick={() => handleRegenerateScript('speed_run')}
+            disabled={isGenerating}
+            className={`btn ${podcast?.format === 'speed_run' ? 'btn-rose' : 'btn-secondary'}`}
+            title="5-Minute rapid exam recap"
+          >
+            <Zap size={16} color="#eab308" />
+            <span>5-Min Cram</span>
+          </button>
+          <button
+            onClick={() => handleRegenerateScript('socratic')}
+            disabled={isGenerating}
+            className={`btn ${podcast?.format === 'socratic' ? 'btn-rose' : 'btn-secondary'}`}
+            title="Professor Socrates & Maya student Q&A"
+          >
+            <GraduationCap size={16} color="#38bdf8" />
+            <span>Socratic Q&A</span>
+          </button>
+
+          <div style={{ borderLeft: '1px solid var(--border-medium)', height: '24px', margin: '0 0.2rem' }} />
+
+          <button onClick={handleCopyScript} className="btn btn-secondary" title="Copy transcript script">
+            {scriptCopied ? <CheckCircle2 size={16} color="#10b981" /> : <Copy size={16} />}
+            <span>{scriptCopied ? 'Copied' : 'Copy'}</span>
+          </button>
+          <button onClick={handleDownloadScript} className="btn btn-secondary" title="Download text transcript">
+            <Download size={16} />
+            <span>Export</span>
           </button>
         </div>
       </div>
 
       {/* Main Studio Console: Animated Avatars + Audio Player */}
       <div className="card" style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border-medium)', position: 'relative' }}>
+        
+        {/* Interactive Chapters Navigation Bar */}
+        {podcast?.chapters && podcast.chapters.length > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.65rem 1rem',
+            background: 'var(--bg-tertiary)',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: '1rem',
+            border: '1px solid var(--border-subtle)',
+            overflowX: 'auto'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-cyan-light)', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>
+              <ListOrdered size={16} />
+              <span>CHAPTERS:</span>
+            </div>
+            {podcast.chapters.map((chap) => {
+              const isActiveChap = currentLineIndex >= chap.lineIndex && 
+                (podcast.chapters?.find((c, i) => i > podcast.chapters!.indexOf(chap))?.lineIndex || Infinity) > currentLineIndex;
+
+              return (
+                <button
+                  key={chap.id}
+                  onClick={() => {
+                    setCurrentLineIndex(chap.lineIndex);
+                    if (isPlaying) playLine(chap.lineIndex);
+                  }}
+                  style={{
+                    padding: '0.35rem 0.75rem',
+                    borderRadius: 'var(--radius-full)',
+                    background: isActiveChap ? 'var(--accent-rose)' : 'rgba(30, 41, 59, 0.8)',
+                    color: isActiveChap ? '#ffffff' : 'var(--text-secondary)',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    border: isActiveChap ? 'none' : '1px solid var(--border-medium)',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {chap.title}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Animated Avatars Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: podcast?.format === 'dual_host' ? 'repeat(2, 1fr)' : '1fr',
+          gridTemplateColumns: (podcast?.format === 'dual_host' || podcast?.format === 'speed_run' || podcast?.format === 'socratic') ? 'repeat(2, 1fr)' : '1fr',
           gap: '1.5rem',
-          padding: '1rem 0 1.5rem',
+          padding: '0.5rem 0 1.5rem',
           borderBottom: '1px solid var(--border-subtle)'
         }}>
-          {/* Host 1: Alex (or David for Storyteller) */}
+          {/* Host 1: Alex / David / Socrates */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '1rem',
             padding: '1rem 1.25rem',
             borderRadius: 'var(--radius-md)',
-            background: activeSpeaker === (podcast?.format === 'dual_host' ? 'Alex' : 'David') ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-tertiary)',
-            border: `1px solid ${activeSpeaker === (podcast?.format === 'dual_host' ? 'Alex' : 'David') ? 'var(--accent-cyan-light)' : 'var(--border-subtle)'}`,
+            background: (activeSpeaker === 'Alex' || activeSpeaker === 'David' || activeSpeaker === 'Socrates') ? 'rgba(56, 189, 248, 0.12)' : 'var(--bg-tertiary)',
+            border: `1px solid ${(activeSpeaker === 'Alex' || activeSpeaker === 'David' || activeSpeaker === 'Socrates') ? 'var(--accent-cyan-light)' : 'var(--border-subtle)'}`,
             transition: 'all 0.3s ease'
           }}>
             <div style={{
               width: '52px',
               height: '52px',
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #0284c7, #38bdf8)',
+              background: podcast?.format === 'socratic' ? 'linear-gradient(135deg, #0284c7, #0d9488)' : 'linear-gradient(135deg, #0284c7, #38bdf8)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -375,43 +458,43 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
               color: '#ffffff',
               position: 'relative'
             }}>
-              {podcast?.format === 'dual_host' ? 'A' : 'D'}
-              {isPlaying && activeSpeaker === (podcast?.format === 'dual_host' ? 'Alex' : 'David') && (
+              {podcast?.format === 'socratic' ? 'S' : podcast?.format === 'storyteller' ? 'D' : 'A'}
+              {isPlaying && (activeSpeaker === 'Alex' || activeSpeaker === 'David' || activeSpeaker === 'Socrates') && (
                 <div className="pulse-ring" style={{ position: 'absolute', inset: 0, borderRadius: '50%' }} />
               )}
             </div>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                  {podcast?.format === 'dual_host' ? 'Alex (Enthusiast)' : 'David (Storyteller)'}
+                  {podcast?.format === 'socratic' ? 'Professor Socrates' : podcast?.format === 'storyteller' ? 'David (Narrator)' : 'Alex (Host)'}
                 </strong>
-                {isPlaying && activeSpeaker === (podcast?.format === 'dual_host' ? 'Alex' : 'David') && (
+                {isPlaying && (activeSpeaker === 'Alex' || activeSpeaker === 'David' || activeSpeaker === 'Socrates') && (
                   <span className="badge badge-cyan" style={{ fontSize: '0.65rem' }}>Speaking</span>
                 )}
               </div>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {podcast?.format === 'dual_host' ? 'Explores big questions & connects analogies' : 'Immersive narrative audio journey'}
+                {podcast?.format === 'socratic' ? 'Guides foundational conceptual questioning' : podcast?.format === 'storyteller' ? 'Immersive narrative audio story' : 'Explores analogies & core takeaways'}
               </p>
             </div>
           </div>
 
-          {/* Host 2: Jordan (only if dual_host) */}
-          {podcast?.format === 'dual_host' && (
+          {/* Host 2: Jordan / Maya */}
+          {(podcast?.format === 'dual_host' || podcast?.format === 'speed_run' || podcast?.format === 'socratic') && (
             <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: '1rem',
               padding: '1rem 1.25rem',
               borderRadius: 'var(--radius-md)',
-              background: activeSpeaker === 'Jordan' ? 'rgba(167, 139, 250, 0.12)' : 'var(--bg-tertiary)',
-              border: `1px solid ${activeSpeaker === 'Jordan' ? 'var(--accent-purple-light)' : 'var(--border-subtle)'}`,
+              background: (activeSpeaker === 'Jordan' || activeSpeaker === 'Maya') ? 'rgba(167, 139, 250, 0.12)' : 'var(--bg-tertiary)',
+              border: `1px solid ${(activeSpeaker === 'Jordan' || activeSpeaker === 'Maya') ? 'var(--accent-purple-light)' : 'var(--border-subtle)'}`,
               transition: 'all 0.3s ease'
             }}>
               <div style={{
                 width: '52px',
                 height: '52px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
+                background: podcast?.format === 'socratic' ? 'linear-gradient(135deg, #ec4899, #a855f7)' : 'linear-gradient(135deg, #7c3aed, #a78bfa)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -420,22 +503,22 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
                 color: '#ffffff',
                 position: 'relative'
               }}>
-                J
-                {isPlaying && activeSpeaker === 'Jordan' && (
+                {podcast?.format === 'socratic' ? 'M' : 'J'}
+                {isPlaying && (activeSpeaker === 'Jordan' || activeSpeaker === 'Maya') && (
                   <div className="pulse-ring" style={{ position: 'absolute', inset: 0, borderRadius: '50%' }} />
                 )}
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <strong style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>
-                    Jordan (Analyst)
+                    {podcast?.format === 'socratic' ? 'Maya (Student)' : 'Jordan (Analyst)'}
                   </strong>
-                  {isPlaying && activeSpeaker === 'Jordan' && (
+                  {isPlaying && (activeSpeaker === 'Jordan' || activeSpeaker === 'Maya') && (
                     <span className="badge badge-rose" style={{ fontSize: '0.65rem' }}>Speaking</span>
                   )}
                 </div>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                  Breaks down equations, technical terms & exam takeaways
+                  {podcast?.format === 'socratic' ? 'Asks sharp intuitive questions & connects real cases' : 'Breaks down equations, technical terms & exam takeaways'}
                 </p>
               </div>
             </div>
@@ -490,7 +573,7 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
           {/* Speed Controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Speed:</span>
-            {[0.75, 1.0, 1.25, 1.5].map((spd) => (
+            {[0.75, 1.0, 1.25, 1.5, 2.0].map((spd) => (
               <button
                 key={spd}
                 onClick={() => changeSpeed(spd)}
@@ -533,7 +616,7 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
                 type="text"
                 value={userQuestion}
                 onChange={(e) => setUserQuestion(e.target.value)}
-                placeholder="E.g., Wait, why does the wave function collapse upon measurement?"
+                placeholder="E.g., Wait, how does this formula handle edge cases?"
                 autoFocus
                 disabled={isAnswering}
                 style={{
@@ -583,6 +666,16 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
         >
           {podcast?.dialogue.map((line, idx) => {
             const isCurrent = idx === currentLineIndex;
+            const speakerColors: Record<string, { bg: string; color: string }> = {
+              Alex: { bg: 'rgba(56, 189, 248, 0.2)', color: 'var(--accent-cyan-light)' },
+              Jordan: { bg: 'rgba(167, 139, 250, 0.2)', color: 'var(--accent-purple-light)' },
+              David: { bg: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24' },
+              Socrates: { bg: 'rgba(16, 185, 129, 0.2)', color: '#34d399' },
+              Maya: { bg: 'rgba(236, 72, 153, 0.2)', color: '#f472b6' },
+              User: { bg: 'rgba(225, 29, 72, 0.2)', color: 'var(--accent-rose-light)' }
+            };
+            const sStyle = speakerColors[line.speaker] || speakerColors.Alex;
+
             return (
               <div
                 key={line.id || idx}
@@ -601,10 +694,10 @@ const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
                 }}
               >
                 <span style={{
-                  padding: '0.2rem 0.5rem',
+                  padding: '0.2rem 0.55rem',
                   borderRadius: 'var(--radius-sm)',
-                  background: line.speaker === 'Alex' ? 'rgba(56, 189, 248, 0.2)' : line.speaker === 'Jordan' ? 'rgba(167, 139, 250, 0.2)' : 'rgba(225, 29, 72, 0.2)',
-                  color: line.speaker === 'Alex' ? 'var(--accent-cyan-light)' : line.speaker === 'Jordan' ? 'var(--accent-purple-light)' : 'var(--accent-rose-light)',
+                  background: sStyle.bg,
+                  color: sStyle.color,
                   fontWeight: 700,
                   fontSize: '0.78rem',
                   flexShrink: 0,

@@ -726,6 +726,7 @@ export const App: React.FC = () => {
             onOpenMindmap={() => setActiveTab('mindmap')}
             onToggleActionItem={handleToggleActionItem}
             onContextMenuTrigger={handleContextMenuTrigger}
+            onUpdateNotes={(updated) => setSession(prev => ({ ...prev, notes: updated }))}
             isRecording={isRecording}
           />
         )}
