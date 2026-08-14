@@ -29,7 +29,7 @@ interface PodcastStudioProps {
   onUpdatePodcast: (newPodcast: PodcastScript) => void;
 }
 
-export const PodcastStudio: React.FC<PodcastStudioProps> = ({
+const PodcastStudioComponent: React.FC<PodcastStudioProps> = ({
   notes,
   initialPodcast,
   onUpdatePodcast
@@ -611,3 +611,5 @@ export const PodcastStudio: React.FC<PodcastStudioProps> = ({
     </div>
   );
 };
+
+export const PodcastStudio = React.memo(PodcastStudioComponent);

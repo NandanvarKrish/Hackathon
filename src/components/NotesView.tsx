@@ -29,7 +29,7 @@ interface NotesViewProps {
   isRecording?: boolean;
 }
 
-export const NotesView: React.FC<NotesViewProps> = ({
+const NotesViewComponent: React.FC<NotesViewProps> = ({
   notes,
   media,
   onOpenPodcast,
@@ -41,7 +41,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
   const { announce } = useAccessibility();
   const [copied, setCopied] = useState(false);
 
-  const handleCopyMarkdown = () => {
+  const handleCopyMarkdown = React.useCallback(() => {
     let md = `# ${notes.title}\n\n`;
     md += `## Executive Summary\n${notes.executiveSummary}\n\n`;
     md += `## Key Takeaways\n${notes.keyTakeaways.map(t => `- ${t}`).join('\n')}\n\n`;
@@ -62,12 +62,12 @@ export const NotesView: React.FC<NotesViewProps> = ({
     setCopied(true);
     announce("Full markdown notes copied to clipboard");
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [notes, announce]);
 
-  const handlePrint = () => {
+  const handlePrint = React.useCallback(() => {
     window.print();
     announce("Opening print dialog for accessible PDF export");
-  };
+  }, [announce]);
 
   return (
     <div id="notes-view-root" style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
@@ -415,3 +415,5 @@ export const NotesView: React.FC<NotesViewProps> = ({
     </div>
   );
 };
+
+export const NotesView = React.memo(NotesViewComponent);

@@ -8,7 +8,7 @@ interface MindmapViewProps {
   lectureTitle: string;
 }
 
-export const MindmapView: React.FC<MindmapViewProps> = ({ mindmap, lectureTitle }) => {
+const MindmapViewComponent: React.FC<MindmapViewProps> = ({ mindmap, lectureTitle }) => {
   const { announce } = useAccessibility();
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [collapsedBranches, setCollapsedBranches] = useState<Record<string, boolean>>({});
@@ -200,3 +200,5 @@ export const MindmapView: React.FC<MindmapViewProps> = ({ mindmap, lectureTitle 
     </div>
   );
 };
+
+export const MindmapView = React.memo(MindmapViewComponent);

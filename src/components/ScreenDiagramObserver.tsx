@@ -96,6 +96,14 @@ export const ScreenDiagramObserver: React.FC<ScreenDiagramObserverProps> = ({
     };
   }, [isScreenSharing, autoCaptureEnabled, currentTimestamp]);
 
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(t => t.stop());
+      }
+    };
+  }, []);
+
   // Capture frame from video
   const captureAndAnalyzeFrame = async (isManual: boolean = false) => {
     if (!videoRef.current || !canvasRef.current || isAnalyzing) return;

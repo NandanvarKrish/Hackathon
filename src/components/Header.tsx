@@ -27,7 +27,7 @@ interface HeaderProps {
   lastHeardPhrase: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({
+const HeaderComponent: React.FC<HeaderProps> = ({
   activeTab,
   setActiveTab,
   isVoiceListening,
@@ -301,3 +301,5 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
+
+export const Header = React.memo(HeaderComponent);

@@ -8,7 +8,7 @@ interface SlideGalleryViewProps {
   onOpenCaptureModal: () => void;
 }
 
-export const SlideGalleryView: React.FC<SlideGalleryViewProps> = ({ media, onOpenCaptureModal }) => {
+const SlideGalleryViewComponent: React.FC<SlideGalleryViewProps> = ({ media, onOpenCaptureModal }) => {
   const { announce } = useAccessibility();
   const [selectedMedia, setSelectedMedia] = useState<LectureMedia | null>(null);
 
@@ -197,3 +197,5 @@ export const SlideGalleryView: React.FC<SlideGalleryViewProps> = ({ media, onOpe
     </div>
   );
 };
+
+export const SlideGalleryView = React.memo(SlideGalleryViewComponent);
